@@ -10,8 +10,8 @@ const {
   deleteTrip
 } = require("../controllers/tripController");
 
-// GET /trips              → all roles
-router.get("/", getAllTrips);
+// GET /trips              → admin, manager only (global list is sensitive)
+router.get("/", auth(["admin", "manager"]), getAllTrips);
 
 // GET /trips/:id          → all roles
 router.get("/:id", getTripById);

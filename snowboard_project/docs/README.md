@@ -32,11 +32,13 @@ The server starts at: **http://localhost:3000**
 
 Send the `x-user-role` header with every request that requires authentication.
 
-| Method | Allowed Roles |
-|--------|--------------|
-| GET    | user, manager, admin |
-| POST   | manager, admin |
-| PUT    | manager, admin |
+| Method / Endpoint | Allowed Roles |
+|-------------------|---------------|
+| GET — public discovery (`/resorts`, `/resorts/:id`, `/resorts/:id/locations`) | user, manager, admin |
+| GET — own trip history (`/users/:id/trips`) | user, manager, admin |
+| GET — sensitive lists (`/users`, `/users/:id`, `/trips`, `/resort-locations`) | manager, admin |
+| POST (create) | manager, admin |
+| PUT (update) | manager, admin |
 | DELETE | admin only |
 
 **Example header:** `x-user-role: admin`
@@ -75,9 +77,9 @@ Send the `x-user-role` header with every request that requires authentication.
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
-| GET | `/users` | Get all users | any role |
-| GET | `/users/:id` | Get user by ID | any role |
-| GET | `/users/:id/trips` | Get all trips for a user | any role |
+| GET | `/users` | Get all users | admin, manager |
+| GET | `/users/:id` | Get user by ID | admin, manager |
+| GET | `/users/:id/trips` | Get all trips for a user | user, manager, admin |
 | POST | `/users` | Create a new user | admin, manager |
 | PUT | `/users/:id` | Update a user | admin, manager |
 | DELETE | `/users/:id` | Delete a user | admin only |
@@ -98,12 +100,12 @@ Send the `x-user-role` header with every request that requires authentication.
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
-| GET | `/resorts` | Get all resorts | any role |
-| GET | `/resorts?country=Switzerland` | Filter by country | any role |
-| GET | `/resorts?difficultyLevel=beginner` | Filter by difficulty | any role |
-| GET | `/resorts/:id` | Get resort by ID | any role |
-| GET | `/resorts/:id/locations` | Get locations for a resort | any role |
-| GET | `/resorts/:id/locations?type=lift` | Filter locations by type | any role |
+| GET | `/resorts` | Get all resorts | user, manager, admin |
+| GET | `/resorts?country=Switzerland` | Filter by country | user, manager, admin |
+| GET | `/resorts?difficultyLevel=beginner` | Filter by difficulty | user, manager, admin |
+| GET | `/resorts/:id` | Get resort by ID | user, manager, admin |
+| GET | `/resorts/:id/locations` | Get locations for a resort | user, manager, admin |
+| GET | `/resorts/:id/locations?type=lift` | Filter locations by type | user, manager, admin |
 | POST | `/resorts` | Create a new resort | admin, manager |
 | PUT | `/resorts/:id` | Update a resort | admin, manager |
 | DELETE | `/resorts/:id` | Delete a resort | admin only |
@@ -129,8 +131,8 @@ Send the `x-user-role` header with every request that requires authentication.
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
-| GET | `/trips` | Get all trips | any role |
-| GET | `/trips/:id` | Get trip by ID | any role |
+| GET | `/trips` | Get all trips (global list) | admin, manager |
+| GET | `/trips/:id` | Get trip by ID | user, manager, admin |
 | POST | `/trips` | Create a new trip | admin, manager |
 | PUT | `/trips/:id` | Update a trip | admin, manager |
 | DELETE | `/trips/:id` | Delete a trip | admin only |
@@ -152,8 +154,8 @@ Send the `x-user-role` header with every request that requires authentication.
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
-| GET | `/resort-locations` | Get all locations | any role |
-| GET | `/resort-locations/:id` | Get location by ID | any role |
+| GET | `/resort-locations` | Get all locations (global list) | admin, manager |
+| GET | `/resort-locations/:id` | Get location by ID | user, manager, admin |
 | POST | `/resort-locations` | Create a location | admin, manager |
 | PUT | `/resort-locations/:id` | Update a location | admin, manager |
 | DELETE | `/resort-locations/:id` | Delete a location | admin only |

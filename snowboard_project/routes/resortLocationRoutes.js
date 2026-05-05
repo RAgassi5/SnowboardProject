@@ -9,8 +9,8 @@ const {
   deleteLocation
 } = require("../controllers/resortLocationController");
 
-// GET /resort-locations         → all roles
-router.get("/", getAllLocations);
+// GET /resort-locations         → admin, manager only (global list is sensitive)
+router.get("/", auth(["admin", "manager"]), getAllLocations);
 
 // GET /resort-locations/:id     → all roles
 router.get("/:id", getLocationById);

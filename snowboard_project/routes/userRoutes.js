@@ -10,14 +10,14 @@ const {
 } = require("../controllers/userController");
 const { getTripsByUserId } = require("../controllers/tripController");
 
-// GET /users             → all roles allowed
-router.get("/", getAllUsers);
+// GET /users             → admin, manager only
+router.get("/", auth(["admin", "manager"]), getAllUsers);
 
-// GET /users/:id/trips   → all roles allowed
+// GET /users/:id/trips   → all roles (user can view their own trip history)
 router.get("/:id/trips", getTripsByUserId);
 
-// GET /users/:id         → all roles allowed
-router.get("/:id", getUserById);
+// GET /users/:id         → admin, manager only
+router.get("/:id", auth(["admin", "manager"]), getUserById);
 
 // POST /users            → admin, manager only
 router.post("/", auth(["admin", "manager"]), createUser);
