@@ -16,11 +16,11 @@ router.get("/", auth(["admin", "manager"]), getAllTrips);
 // GET /trips/:id          → all roles
 router.get("/:id", getTripById);
 
-// POST /trips             → admin, manager only
-router.post("/", auth(["admin", "manager"]), createTrip);
+// POST /trips             → user, admin, manager
+router.post("/", auth(["user","admin", "manager"]), createTrip);
 
-// PUT /trips/:id          → admin, manager only
-router.put("/:id", auth(["admin", "manager"]), updateTrip);
+// PUT /trips/:id          → user, admin, manager
+router.put("/:id", auth(["user", "admin", "manager"]), updateTrip);
 
 // DELETE /trips/:id       → admin only
 router.delete("/:id", auth(["admin"]), deleteTrip);

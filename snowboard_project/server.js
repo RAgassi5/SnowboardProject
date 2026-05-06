@@ -7,7 +7,8 @@ const userRoutes = require("./routes/userRoutes");
 const resortRoutes = require("./routes/resortRoutes");
 const tripRoutes = require("./routes/tripRoutes");
 const resortLocationRoutes = require("./routes/resortLocationRoutes");
-const aiRoutes = require("./routes/aiRoutes");
+const aiRoutes   = require("./routes/aiRoutes");
+const authRoutes = require("./routes/authRoutes");
 
 // ─── Global Middleware ────────────────────────────────────────────────────────
 app.use(express.json());
@@ -19,6 +20,7 @@ app.use("/resorts", resortRoutes);
 app.use("/trips", tripRoutes);
 app.use("/resort-locations", resortLocationRoutes);
 app.use("/", aiRoutes);
+app.use("/auth", authRoutes);
 
 // ─── Global Error Handler ─────────────────────────────────────────────────────
 // Catches any unexpected errors thrown in controllers/routes

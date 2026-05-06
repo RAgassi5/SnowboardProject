@@ -1,4 +1,5 @@
 const resorts = require("../models/resorts");
+const weatherLogs = require("../models/weatherLogs");
 
 // GET /resorts  (supports ?country= and ?difficultyLevel= filters)
 const getAllResorts = (req, res) => {
@@ -150,4 +151,28 @@ const deleteResort = (req, res) => {
   return res.status(200).json({ success: true, data: { resortId: id }, error: null });
 };
 
-module.exports = { getAllResorts, getResortById, createResort, updateResort, deleteResort };
+
+// GET /resorts/:id/forecast
+const getWeatherForecast = (req, res) => {
+  const id = parseInt(req.params.id);
+  const resort = resorts.find((r) => r.resortId === id);
+
+  if (!resort) {
+    return res.status(404).json({
+      success: false,
+      data: null,
+      error: { code: "NOT_FOUND", message: `Resort with id ${id} not found.`, details: {} }
+    });
+  }
+
+  const logs = weatherLogs.filter((w) => w.resortId === id);
+
+  return res.status(200).json({
+    success: true,
+    data: { resortId: resort.resortId, resortName: resort.name, forecast: logs },
+    error: null
+  });
+};
+
+module.exports = { getAllResorts, getResortById, createResort, updateResort, deleteResort, getWeatherForecast };
+
