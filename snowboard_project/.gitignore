@@ -1,0 +1,12 @@
+# OS X
+.DS_Store
+
+# JetBrains IDE
+.idea/
+*.iml
+
+# Node / Web Development
+node_modules/
+dist/
+build/
+.env
