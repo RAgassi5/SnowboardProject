@@ -1,0 +1,345 @@
+/**
+ * SnowTrip Planner — API Service Layer
+ *
+ * Base URL: http://localhost:3000 (Assignment 2 backend)
+ *
+ * All backend responses follow the universal format:
+ *   { success: true,  data: {...}, error: null }
+ *   { success: false, data: null,  error: { code, message, details } }
+ *
+ * This module:
+ *   1. Sends requests with proper headers (Content-Type, x-user-role)
+ *   2. Parses JSON automatically
+ *   3. Unwraps the universal response envelope
+ *   4. Throws readable Error objects on failure (using error.message from backend)
+ */
+
+// ── Base configuration ────────────────────────────────────────────────────────
+
+export const API_BASE_URL = 'http://localhost:3000';
+
+// ── Auth helpers ──────────────────────────────────────────────────────────────
+
+/**
+ * Read the logged-in user from localStorage.
+ * Returns the parsed user object, or null if not logged in.
+ */
+export const getStoredUser = () => {
+  try {
+    const raw = localStorage.getItem('snowtrip_user');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Returns the role of the currently stored user.
+ * Defaults to 'user' if no role is found.
+ */
+export const getStoredRole = () => {
+  const user = getStoredUser();
+  return user?.userRole ?? 'user';
+};
+
+// ── Core request helper ───────────────────────────────────────────────────────
+
+/**
+ * Central fetch wrapper.
+ *
+ * @param {string} path       - API path, e.g. '/resorts' or '/auth/login'
+ * @param {object} options    - Fetch options: method, body, role, extraHeaders
+ * @returns {*}               - Unwrapped `data` from the backend response
+ * @throws {Error}            - With backend's error.message (or fallback)
+ */
+const request = async (path, options = {}) => {
+  const {
+    method = 'GET',
+    body = undefined,
+    role = null,          // pass explicit role, or omit to auto-read from localStorage
+    extraHeaders = {}
+  } = options;
+
+  // Build headers
+  const headers = {
+    'Content-Type': 'application/json',
+    ...extraHeaders
+  };
+
+  // Attach role header: explicit > localStorage > omit
+  const userRole = role ?? getStoredRole();
+  if (userRole) {
+    headers['x-user-role'] = userRole;
+  }
+
+  // Build fetch config
+  const fetchConfig = {
+    method,
+    headers,
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {})
+  };
+
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, fetchConfig);
+  } catch (networkErr) {
+    // Network failure (e.g. backend not running)
+    throw new Error(
+      'Cannot connect to the server. Please make sure the backend is running on http://localhost:3000'
+    );
+  }
+
+  // Parse JSON
+  let json;
+  try {
+    json = await response.json();
+  } catch {
+    throw new Error(`Server returned an unexpected response (HTTP ${response.status})`);
+  }
+
+  // Unwrap universal response envelope
+  if (json.success === false) {
+    const message =
+      json?.error?.message ||
+      `Request failed (HTTP ${response.status})`;
+    const err = new Error(message);
+    err.code    = json?.error?.code    ?? 'UNKNOWN_ERROR';
+    err.details = json?.error?.details ?? {};
+    err.status  = response.status;
+    throw err;
+  }
+
+  // Return only the data payload
+  return json.data;
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+// AUTH
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /auth/login
+ * Returns { message, user }
+ */
+export const login = (email, password) =>
+  request('/auth/login', {
+    method: 'POST',
+    body: { email, password },
+    role: null  // no role needed for public login endpoint
+  });
+
+/**
+ * POST /auth/register
+ * Returns { message, user }
+ */
+export const register = (payload) =>
+  request('/auth/register', {
+    method: 'POST',
+    body: payload,
+    role: null
+  });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// RESORTS
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /resorts
+ * Supports optional query filters: country, difficultyLevel
+ * Returns array of resort objects
+ */
+export const getResorts = (filters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.country)        params.set('country', filters.country);
+  if (filters.difficultyLevel) params.set('difficultyLevel', filters.difficultyLevel);
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  return request(`/resorts${qs}`);
+};
+
+/**
+ * GET /resorts/:id
+ * Returns a single resort object
+ */
+export const getResortById = (id) =>
+  request(`/resorts/${id}`);
+
+/**
+ * GET /resorts/:id/forecast
+ * Returns { resortId, resortName, forecast: [...weatherLogs] }
+ */
+export const getResortForecast = (id) =>
+  request(`/resorts/${id}/forecast`);
+
+/**
+ * GET /resorts/:id/locations
+ * Supports optional query filter: type
+ * Returns array of location objects for the resort
+ */
+export const getResortLocations = (id, type = null) => {
+  const qs = type ? `?type=${encodeURIComponent(type)}` : '';
+  return request(`/resorts/${id}/locations${qs}`);
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+// AI / RECOMMENDATIONS
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /recommend-resorts
+ * Requires x-user-role header (any valid role).
+ * Payload: { startDate, endDate, skillLevel, sportType }
+ * Returns { startDate, endDate, skillLevel, skillLevelLabel, sportType, recommendations: [top3] }
+ */
+export const recommendResorts = (payload, role) =>
+  request('/recommend-resorts', {
+    method: 'POST',
+    body: payload,
+    role: role ?? getStoredRole()
+  });
+
+/**
+ * POST /gear-recommendation
+ * Requires x-user-role header (any valid role).
+ * Payload: { resortId, skillLevel, sportType }
+ * Returns { resortId, resortName, suggestedGear, warning? }
+ */
+export const getGearRecommendation = (payload, role) =>
+  request('/gear-recommendation', {
+    method: 'POST',
+    body: payload,
+    role: role ?? getStoredRole()
+  });
+
+/**
+ * POST /resort-summary
+ * No role restriction.
+ * Payload: { resortId, skillLevel }
+ * Returns { resortId, resortName, summary, ... }
+ */
+export const getResortSummary = (payload) =>
+  request('/resort-summary', {
+    method: 'POST',
+    body: payload
+  });
+
+/**
+ * POST /resort-assistant
+ * Requires x-user-role header (any valid role).
+ * Payload: { resortId, locationType, sportType }
+ * Returns { resortId, resortName, generalTip, inResortSpots }
+ */
+export const getResortAssistant = (payload, role) =>
+  request('/resort-assistant', {
+    method: 'POST',
+    body: payload,
+    role: role ?? getStoredRole()
+  });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// USERS
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /users
+ * Requires admin or manager role.
+ * Returns array of user objects
+ */
+export const getAllUsers = (role) =>
+  request('/users', { role: role ?? getStoredRole() });
+
+/**
+ * GET /users/:id
+ * Requires admin or manager role.
+ * Returns a single user object
+ */
+export const getUserById = (id, role) =>
+  request(`/users/${id}`, { role: role ?? getStoredRole() });
+
+/**
+ * GET /users/:id/trips
+ * No role restriction — user can view their own trips.
+ * Returns array of trip objects for the user
+ */
+export const getUserTrips = (userId) =>
+  request(`/users/${userId}/trips`);
+
+/**
+ * PUT /users/:id
+ * Requires admin or manager role.
+ * Payload: { firstName, lastName, userRole }
+ * Returns { userId }
+ */
+export const updateUser = (userId, payload, role) =>
+  request(`/users/${userId}`, {
+    method: 'PUT',
+    body: payload,
+    role: role ?? getStoredRole()
+  });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// TRIPS
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /trips
+ * Requires admin or manager role.
+ * Returns array of all trips
+ */
+export const getAllTrips = (role) =>
+  request('/trips', { role: role ?? getStoredRole() });
+
+/**
+ * GET /trips/:id
+ * Returns a single trip object.
+ */
+export const getTripById = (tripId) =>
+  request(`/trips/${tripId}`);
+
+/**
+ * POST /trips
+ * Requires user, admin, or manager role.
+ * Payload: { userId, resortId, startDate, endDate }
+ * Returns { tripId }
+ */
+export const createTrip = (payload, role) =>
+  request('/trips', {
+    method: 'POST',
+    body: payload,
+    role: role ?? getStoredRole()
+  });
+
+/**
+ * PUT /trips/:id
+ * Requires user, admin, or manager role.
+ * Payload: { userId, resortId, startDate, endDate }
+ * Returns { tripId }
+ */
+export const updateTrip = (tripId, payload, role) =>
+  request(`/trips/${tripId}`, {
+    method: 'PUT',
+    body: payload,
+    role: role ?? getStoredRole()
+  });
+
+/**
+ * DELETE /trips/:id
+ * Requires admin role.
+ * Returns { tripId }
+ */
+export const deleteTrip = (tripId, role) =>
+  request(`/trips/${tripId}`, {
+    method: 'DELETE',
+    role: role ?? getStoredRole()
+  });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// RESORT LOCATIONS
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /resort-locations
+ * Requires admin or manager role.
+ * Returns array of all resort locations
+ */
+export const getAllLocations = (role) =>
+  request('/resort-locations', { role: role ?? getStoredRole() });
