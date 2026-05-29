@@ -8,7 +8,7 @@
  *   { success: false, data: null,  error: { code, message, details } }
  *
  * This module:
- *   1. Sends requests with proper headers (Content-Type, x-user-role)
+ *   1. Sends requests with proper headers (Content-Type, x-user-role, x-user-id)
  *   2. Parses JSON automatically
  *   3. Unwraps the universal response envelope
  *   4. Throws readable Error objects on failure (using error.message from backend)
@@ -70,6 +70,12 @@ const request = async (path, options = {}) => {
   const userRole = role ?? getStoredRole();
   if (userRole) {
     headers['x-user-role'] = userRole;
+  }
+
+  // Always attach x-user-id for ownership checks (e.g. trip deletion)
+  const storedUser = getStoredUser();
+  if (storedUser?.userId) {
+    headers['x-user-id'] = String(storedUser.userId);
   }
 
   // Build fetch config
@@ -150,7 +156,7 @@ export const register = (payload) =>
  */
 export const getResorts = (filters = {}) => {
   const params = new URLSearchParams();
-  if (filters.country)        params.set('country', filters.country);
+  if (filters.country)         params.set('country', filters.country);
   if (filters.difficultyLevel) params.set('difficultyLevel', filters.difficultyLevel);
   const qs = params.toString() ? `?${params.toString()}` : '';
   return request(`/resorts${qs}`);
@@ -179,6 +185,43 @@ export const getResortLocations = (id, type = null) => {
   const qs = type ? `?type=${encodeURIComponent(type)}` : '';
   return request(`/resorts/${id}/locations${qs}`);
 };
+
+/**
+ * POST /resorts
+ * Requires admin or manager role.
+ * Payload: { name, country, elevation, terrainType, difficultyLevel, snowboardFriendly, latitude, longitude }
+ * Returns { resortId }
+ */
+export const createResort = (payload, role) =>
+  request('/resorts', {
+    method: 'POST',
+    body: payload,
+    role: role ?? getStoredRole()
+  });
+
+/**
+ * PUT /resorts/:id
+ * Requires admin or manager role.
+ * Payload: same as createResort
+ * Returns { resortId }
+ */
+export const updateResort = (id, payload, role) =>
+  request(`/resorts/${id}`, {
+    method: 'PUT',
+    body: payload,
+    role: role ?? getStoredRole()
+  });
+
+/**
+ * DELETE /resorts/:id
+ * Requires admin role.
+ * Returns { resortId }
+ */
+export const deleteResort = (id, role) =>
+  request(`/resorts/${id}`, {
+    method: 'DELETE',
+    role: role ?? getStoredRole()
+  });
 
 // ═════════════════════════════════════════════════════════════════════════════
 // AI / RECOMMENDATIONS
@@ -276,6 +319,17 @@ export const updateUser = (userId, payload, role) =>
     role: role ?? getStoredRole()
   });
 
+/**
+ * DELETE /users/:id
+ * Requires admin role.
+ * Returns { userId }
+ */
+export const deleteUser = (userId, role) =>
+  request(`/users/${userId}`, {
+    method: 'DELETE',
+    role: role ?? getStoredRole()
+  });
+
 // ═════════════════════════════════════════════════════════════════════════════
 // TRIPS
 // ═════════════════════════════════════════════════════════════════════════════
@@ -323,7 +377,8 @@ export const updateTrip = (tripId, payload, role) =>
 
 /**
  * DELETE /trips/:id
- * Requires admin role.
+ * - admin/manager: delete any trip.
+ * - user: can only delete their own trip (backend enforces via x-user-id, auto-attached by request()).
  * Returns { tripId }
  */
 export const deleteTrip = (tripId, role) =>
@@ -343,3 +398,40 @@ export const deleteTrip = (tripId, role) =>
  */
 export const getAllLocations = (role) =>
   request('/resort-locations', { role: role ?? getStoredRole() });
+
+/**
+ * POST /resort-locations
+ * Requires admin or manager role.
+ * Payload: { resortId, name, type, description }
+ * Returns { locationId }
+ */
+export const createLocation = (payload, role) =>
+  request('/resort-locations', {
+    method: 'POST',
+    body: payload,
+    role: role ?? getStoredRole()
+  });
+
+/**
+ * PUT /resort-locations/:id
+ * Requires admin or manager role.
+ * Payload: { resortId, name, type, description }
+ * Returns { locationId }
+ */
+export const updateLocation = (id, payload, role) =>
+  request(`/resort-locations/${id}`, {
+    method: 'PUT',
+    body: payload,
+    role: role ?? getStoredRole()
+  });
+
+/**
+ * DELETE /resort-locations/:id
+ * Requires admin role.
+ * Returns { locationId }
+ */
+export const deleteLocation = (id, role) =>
+  request(`/resort-locations/${id}`, {
+    method: 'DELETE',
+    role: role ?? getStoredRole()
+  });
