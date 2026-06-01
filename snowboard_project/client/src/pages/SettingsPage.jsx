@@ -2,6 +2,14 @@ import React, { useState } from 'react';
 import { updateUser, getStoredUser, getStoredRole } from '../services/api';
 import ErrorMessage from '../components/ErrorMessage';
 
+// ── Snow preference helpers ───────────────────────────────────────────────────
+const SNOW_KEY = 'snowtrip_snow';
+const getSnowEnabled = () => localStorage.getItem(SNOW_KEY) !== 'false';
+const saveSnowEnabled = (val) => {
+  localStorage.setItem(SNOW_KEY, String(val));
+  window.dispatchEvent(new Event('snowtrip:snow-changed'));
+};
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ROLE_COLORS     = { admin: '#f59e0b', manager: '#38d9c0', user: '#4f8ef7' };
 const ROLE_ICONS      = { admin: '⭐', manager: '🔑', user: '👤' };
@@ -20,6 +28,14 @@ const validate = ({ firstName, lastName }) => {
 function SettingsPage() {
   const user = getStoredUser();
   const role = getStoredRole();
+
+  const [snowEnabled, setSnowEnabled] = useState(getSnowEnabled);
+
+  const handleSnowToggle = () => {
+    const next = !snowEnabled;
+    setSnowEnabled(next);
+    saveSnowEnabled(next);
+  };
 
   const [form, setForm] = useState({
     firstName:  user?.firstName  ?? '',
@@ -259,6 +275,38 @@ function SettingsPage() {
             </form>
           </div>
 
+          {/* Winter Effects */}
+          <div className="card" style={{ marginTop: '1rem' }}>
+            <h3 style={{ ...styles.prefTitle, marginBottom: '0.25rem' }}>❄️ Winter Effects</h3>
+            <p style={styles.prefSub}>Decorative snowfall animation displayed across the app.</p>
+            <label htmlFor="snow-toggle" style={styles.snowToggleRow}>
+              <span style={styles.snowToggleLabel}>
+                <span style={{ fontSize: '1rem' }}>🌨️</span>
+                Enable Snowfall Animation
+              </span>
+              <span
+                id="snow-toggle"
+                role="switch"
+                aria-checked={snowEnabled}
+                tabIndex={0}
+                onClick={handleSnowToggle}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleSnowToggle()}
+                style={{
+                  ...styles.toggleTrack,
+                  background: snowEnabled ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)',
+                }}
+              >
+                <span style={{
+                  ...styles.toggleThumb,
+                  transform: snowEnabled ? 'translateX(20px)' : 'translateX(2px)',
+                }} />
+              </span>
+            </label>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+              {snowEnabled ? '✅ Snowfall is active.' : '⏸ Snowfall is paused.'}
+            </p>
+          </div>
+
           {/* Logout */}
           <div className="card" style={{ marginTop: '1rem' }}>
             <h3 style={{ ...styles.prefTitle, marginBottom: '0.5rem' }}>Session</h3>
@@ -320,6 +368,31 @@ const styles = {
   nameRow:   { display: 'flex', gap: '1rem' },
   prefTitle: { fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.25rem' },
   prefSub:   { fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem', lineHeight: 1.55 },
+  snowToggleRow: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    gap: '1rem', cursor: 'pointer', userSelect: 'none',
+    padding: '0.65rem 0.85rem',
+    background: 'rgba(255,255,255,0.03)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 'var(--radius-md)',
+  },
+  snowToggleLabel: {
+    display: 'flex', alignItems: 'center', gap: '0.5rem',
+    fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)',
+  },
+  toggleTrack: {
+    position: 'relative', display: 'inline-block',
+    width: 44, height: 24, borderRadius: 12,
+    flexShrink: 0, transition: 'background 0.2s ease',
+    cursor: 'pointer',
+  },
+  toggleThumb: {
+    position: 'absolute', top: 2,
+    width: 20, height: 20, borderRadius: '50%',
+    background: '#fff',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
+    transition: 'transform 0.2s ease',
+  },
   sportToggle: { display: 'flex', gap: '0.75rem' },
   sportOpt: {
     flex: 1, textAlign: 'center', padding: '0.65rem',
