@@ -1,15 +1,19 @@
 # ── Dependencies ────────────────────────────────────────────────
 node_modules/
 client/node_modules/
+server/node_modules/
 
 # ── Build & dist artifacts ───────────────────────────────────────
 build/
 dist/
 client/build/
+server/build/
 
 # ── Environment files ────────────────────────────────────────────
 .env
 .env.*
+server/.env
+server/.env.*
 
 # ── Logs ─────────────────────────────────────────────────────────
 npm-debug.log*

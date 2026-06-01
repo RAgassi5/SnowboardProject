@@ -1,8 +1,8 @@
 {
-  "name": "snowboard_project",
+  "name": "snowboard-server",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "SnowTrip Planner — Express backend",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
