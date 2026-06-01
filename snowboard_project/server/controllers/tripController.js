@@ -282,6 +282,8 @@ const updateTrip = (req, res, next) => {
 };
 
 // DELETE /trips/:id
+// - admin / manager → delete any trip
+// - user            → only if trip.userId === x-user-id header
 const deleteTrip = (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
@@ -299,6 +301,24 @@ const deleteTrip = (req, res, next) => {
       });
     }
 
+    const role   = req.headers["x-user-role"];
+    const userId = parseInt(req.headers["x-user-id"]);
+
+    // Regular users may only delete their own trips
+    if (role === "user") {
+      if (isNaN(userId) || trips[tripIndex].userId !== userId) {
+        return res.status(403).json({
+          success: false,
+          data: null,
+          error: {
+            code: "FORBIDDEN",
+            message: "You can only delete trips that you created.",
+            details: {}
+          }
+        });
+      }
+    }
+
     trips.splice(tripIndex, 1);
 
     return res.status(200).json({ success: true, data: { tripId: id }, error: null });
@@ -306,6 +326,7 @@ const deleteTrip = (req, res, next) => {
     next(err);
   }
 };
+
 
 module.exports = {
   getAllTrips,

@@ -1,16 +1,34 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
+import Snowfall from 'react-snowfall';
 import Navbar from './Navbar';
 import Footer from './Footer';
+
+// ── Snow preference helpers ───────────────────────────────────────────────────
+
+const SNOW_KEY = 'snowtrip_snow';
+
+/** Returns true if snowfall is enabled (default: true). */
+const getSnowEnabled = () => localStorage.getItem(SNOW_KEY) !== 'false';
 
 /**
  * Layout — wraps all protected pages.
  * Structure: Navbar (fixed) → <main> with top padding → <Outlet> → Footer
+ * Snowfall is mounted here once, globally, behind all UI (z-index: 1, pointer-events: none).
  *
  * The <style> tag below handles responsive rules for the Navbar
  * that can't be expressed purely in JS inline styles.
  */
 function Layout() {
+  const [snowEnabled, setSnowEnabled] = useState(getSnowEnabled);
+
+  // Listen for real-time toggle changes fired from SettingsPage
+  useEffect(() => {
+    const handler = () => setSnowEnabled(getSnowEnabled());
+    window.addEventListener('snowtrip:snow-changed', handler);
+    return () => window.removeEventListener('snowtrip:snow-changed', handler);
+  }, []);
+
   return (
     <>
       {/* Responsive overrides for Navbar */}
@@ -68,7 +86,28 @@ function Layout() {
         }
       `}</style>
 
-      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      {/* ── Snowfall — fixed, behind all UI, non-interactive ──────────────── */}
+      {snowEnabled && (
+        <Snowfall
+          color="#d4e8ff"
+          snowflakeCount={80}
+          speed={[0.4, 1.4]}
+          wind={[-0.3, 0.8]}
+          radius={[1, 5]}
+          opacity={[0.35, 0.8]}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            zIndex: 1,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', position: 'relative', zIndex: 2 }}>
         <Navbar />
         <main
           style={{ flex: 1, paddingTop: 'var(--navbar-height)' }}

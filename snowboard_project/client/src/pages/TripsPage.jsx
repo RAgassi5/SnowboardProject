@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getUserTrips, getResorts, getStoredUser } from '../services/api';
+import { getUserTrips, getResorts, getStoredUser, deleteTrip } from '../services/api';
 import TripCard from '../components/TripCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
@@ -39,6 +39,12 @@ function TripsPage() {
     load();
     return () => { cancelled = true; };
   }, [user?.userId]);
+
+  // Delete a trip and remove from local state
+  const handleDeleteTrip = async (tripId) => {
+    await deleteTrip(tripId);
+    setTrips(prev => prev.filter(t => t.tripId !== tripId));
+  };
 
   // Enrich trips with resort data
   const enrichedTrips = trips.map(trip => ({
@@ -84,7 +90,8 @@ function TripsPage() {
           </div>
           <div className="grid-3">
             {enrichedTrips.map(({ resort, ...trip }) => (
-              <TripCard key={trip.tripId} trip={trip} resort={resort} />
+              <TripCard key={trip.tripId} trip={trip} resort={resort}
+                onDelete={handleDeleteTrip} />
             ))}
           </div>
         </>

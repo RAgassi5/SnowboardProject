@@ -2,14 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { getStoredUser } from '../services/api';
 
-// ── Navigation links config ───────────────────────────────────────────────────
-const NAV_LINKS = [
-  { to: '/dashboard', label: 'Dashboard',  icon: '🏠' },
-  { to: '/plan-trip', label: 'Plan Trip',  icon: '🎯' },
-  { to: '/trips',     label: 'My Trips',   icon: '📋' },
-  { to: '/resorts',   label: 'Resorts',    icon: '⛷️'  },
-  { to: '/settings',  label: 'Settings',   icon: '⚙️'  },
-];
+// ── Navigation links builder ──────────────────────────────────────────────────
+const getNavLinks = (userRole) => {
+  const links = [
+    { to: '/dashboard', label: 'Dashboard',  icon: '🏠' },
+    { to: '/plan-trip', label: 'Plan Trip',  icon: '🎯' },
+    { to: '/trips',     label: 'My Trips',   icon: '📋' },
+    { to: '/resorts',   label: 'Resorts',    icon: '⛷️'  },
+    { to: '/settings',  label: 'Settings',   icon: '⚙️'  },
+  ];
+  if (userRole === 'admin' || userRole === 'manager') {
+    links.push({ to: '/management', label: 'Management', icon: '🛠️' });
+  }
+  return links;
+};
 
 
 function Navbar() {
@@ -46,6 +52,8 @@ function Navbar() {
     ? (user.firstName?.[0] ?? '?').toUpperCase()
     : '?';
 
+  const navLinks = getNavLinks(user?.userRole);
+
   const roleColor = {
     admin:   '#f59e0b',
     manager: '#38d9c0',
@@ -65,7 +73,7 @@ function Navbar() {
 
       {/* ── Centre: Desktop nav links ────────────────────────────────────────── */}
       <ul style={styles.linkList}>
-        {NAV_LINKS.map(({ to, label, icon }) => (
+        {navLinks.map(({ to, label, icon }) => (
           <li key={to}>
             <NavLink
               to={to}
@@ -151,7 +159,7 @@ function Navbar() {
 
           {/* Mobile nav links */}
           <ul style={{ padding: 0 }}>
-            {NAV_LINKS.map(({ to, label, icon }) => (
+            {navLinks.map(({ to, label, icon }) => (
               <li key={to} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                 <NavLink
                   to={to}

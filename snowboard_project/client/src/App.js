@@ -10,6 +10,7 @@ import TripsPage       from './pages/TripsPage';
 import TripDetailsPage from './pages/TripDetailsPage';
 import ResortsPage     from './pages/ResortsPage';
 import SettingsPage    from './pages/SettingsPage';
+import ManagementPage  from './pages/ManagementPage';
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 import Layout         from './components/Layout';
@@ -37,6 +38,7 @@ function App() {
           <Route path="/trips/:tripId"    element={<TripDetailsPage />} />
           <Route path="/resorts"          element={<ResortsPage />} />
           <Route path="/settings"         element={<SettingsPage />} />
+          <Route path="/management"       element={<ManagementPage />} />
         </Route>
 
         {/* Redirects */}

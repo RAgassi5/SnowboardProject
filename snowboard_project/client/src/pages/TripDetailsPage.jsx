@@ -3,8 +3,9 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   getTripById, getResortById, getResortForecast,
   getResortLocations, getResortAssistant, getResortSummary,
-  getStoredUser, getStoredRole,
+  getStoredUser, getStoredRole, deleteTrip,
 } from '../services/api';
+import ConfirmDialog from '../components/ConfirmDialog';
 import GearAdvisorModal from '../components/GearAdvisorModal';
 import DataTable from '../components/DataTable';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -61,6 +62,10 @@ function TripDetailsPage() {
   // Locations filter
   const [locFilter, setLocFilter] = useState('all');
 
+  // Delete
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting,          setDeleting]          = useState(false);
+
   // Resort assistant
   const [assistantType,     setAssistantType]     = useState('');
   const [assistantResult,   setAssistantResult]   = useState(null);
@@ -112,6 +117,19 @@ function TripDetailsPage() {
     return () => { cancelled = true; };
   }, [tripId, user?.skillLevel]);
 
+  // ── Delete trip ───────────────────────────────────────────────────────────────
+  const handleDeleteTrip = async () => {
+    setShowDeleteConfirm(false);
+    setDeleting(true);
+    try {
+      await deleteTrip(trip.tripId);
+      navigate('/trips', { replace: true });
+    } catch (err) {
+      setError(err.message);
+      setDeleting(false);
+    }
+  };
+
   // ── Resort assistant ─────────────────────────────────────────────────────────
   const handleAssistant = async (locType) => {
     if (!resort) return;
@@ -161,11 +179,20 @@ function TripDetailsPage() {
   return (
     <div className="page-content" style={{ paddingBottom: '6rem' /* space for FAB */ }}>
 
-      {/* Back link */}
-      <div style={{ marginBottom: '1.25rem' }}>
+      {/* Back + Delete row */}
+      <div style={{ marginBottom: '1.25rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
         <button onClick={() => navigate('/trips')} className="btn btn-secondary"
           id="back-to-trips" style={{ fontSize: '0.85rem' }}>
           ← Back to My Trips
+        </button>
+        <button
+          id="delete-trip-btn"
+          className="btn btn-danger"
+          onClick={() => setShowDeleteConfirm(true)}
+          disabled={deleting}
+          style={{ fontSize: '0.85rem', marginLeft: 'auto' }}
+        >
+          {deleting ? '…' : '🗑 Delete Trip'}
         </button>
       </div>
 
@@ -332,6 +359,17 @@ function TripDetailsPage() {
 
       {/* ── Gear Advisor floating button + modal ────────────────────────── */}
       <GearAdvisorModal resortId={resort.resortId} resortName={resort.name} />
+
+      {/* ── Delete confirm dialog ────────────────────────────────────────── */}
+      {showDeleteConfirm && (
+        <ConfirmDialog
+          title="Delete Trip?"
+          message={`Permanently delete your trip to ${resort.name}? This cannot be undone.`}
+          confirmText="Delete Trip"
+          onConfirm={handleDeleteTrip}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
     </div>
   );
 }

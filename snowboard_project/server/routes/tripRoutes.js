@@ -22,7 +22,7 @@ router.post("/", auth(["user","admin", "manager"]), createTrip);
 // PUT /trips/:id          → user, admin, manager
 router.put("/:id", auth(["user", "admin", "manager"]), updateTrip);
 
-// DELETE /trips/:id       → admin only
-router.delete("/:id", auth(["admin"]), deleteTrip);
+// DELETE /trips/:id → admin/manager can delete any; user can delete own only (enforced in controller)
+router.delete("/:id", auth(["user", "admin", "manager"]), deleteTrip);
 
 module.exports = router;

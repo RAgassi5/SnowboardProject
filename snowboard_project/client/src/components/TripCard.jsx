@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ConfirmDialog from './ConfirmDialog';
 
 const COUNTRY_FLAGS = {
   Switzerland: '🇨🇭', France: '🇫🇷', Austria: '🇦🇹',
@@ -17,89 +18,131 @@ const DIFFICULTY_LABELS = {
  * TripCard — reusable card for a saved trip.
  *
  * Props:
- *   trip     {object}  — trip object { tripId, userId, resortId, startDate, endDate }
- *   resort   {object}  — enriched resort object (may be null if not loaded yet)
+ *   trip       {object}    — trip object { tripId, userId, resortId, startDate, endDate }
+ *   resort     {object}    — enriched resort object (may be null if not loaded yet)
+ *   onDelete   {function}  — optional; called with (tripId) after user confirms delete
  */
-function TripCard({ trip, resort }) {
+function TripCard({ trip, resort, onDelete }) {
   const navigate = useNavigate();
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [deleting,    setDeleting]    = useState(false);
+
   if (!trip) return null;
 
-  const resortName  = resort?.name   ?? `Resort #${trip.resortId}`;
-  const country     = resort?.country ?? '';
-  const flag        = COUNTRY_FLAGS[country] ?? '🌍';
-  const difficulty  = resort?.difficultyLevel;
-  const dColor      = DIFFICULTY_COLORS[difficulty] ?? '#4f8ef7';
-  const dLabel      = DIFFICULTY_LABELS[difficulty] ?? '';
+  const resortName    = resort?.name   ?? `Resort #${trip.resortId}`;
+  const country       = resort?.country ?? '';
+  const flag          = COUNTRY_FLAGS[country] ?? '🌍';
+  const difficulty    = resort?.difficultyLevel;
+  const dColor        = DIFFICULTY_COLORS[difficulty] ?? '#4f8ef7';
+  const dLabel        = DIFFICULTY_LABELS[difficulty] ?? '';
   const boardFriendly = resort?.snowboardFriendly;
 
-  // Trip duration
-  const start = new Date(trip.startDate);
-  const end   = new Date(trip.endDate);
+  const start  = new Date(trip.startDate);
+  const end    = new Date(trip.endDate);
   const nights = Math.round((end - start) / (1000 * 60 * 60 * 24));
 
   const formatDate = (iso) =>
     new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
+  const handleDelete = async () => {
+    setShowConfirm(false);
+    setDeleting(true);
+    try {
+      await onDelete(trip.tripId);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
-    <article
-      className="card trip-card"
-      style={styles.card}
-      aria-label={`Trip to ${resortName}`}
-    >
-      {/* Accent bar coloured by difficulty */}
-      <div style={{ ...styles.accentBar, background: dColor }} aria-hidden="true" />
-
-      {/* Header */}
-      <div style={styles.header}>
-        <div>
-          <h3 style={styles.name}>{resortName}</h3>
-          {country && (
-            <div style={styles.country}>
-              <span aria-label={`Country: ${country}`}>{flag}</span>
-              <span>{country}</span>
-            </div>
-          )}
-        </div>
-        <div style={styles.nightsBubble} aria-label={`${nights} nights`}>
-          <div style={styles.nightsNum}>{nights}</div>
-          <div style={styles.nightsLabel}>nights</div>
-        </div>
-      </div>
-
-      {/* Dates */}
-      <div style={styles.dates}>
-        <span style={styles.dateIcon} aria-hidden="true">📅</span>
-        <span style={styles.dateText}>
-          {formatDate(trip.startDate)} → {formatDate(trip.endDate)}
-        </span>
-      </div>
-
-      {/* Badges */}
-      {(dLabel || boardFriendly !== undefined) && (
-        <div style={styles.badgesRow}>
-          {dLabel && (
-            <span style={{ ...styles.diffBadge, color: dColor, borderColor: `${dColor}40` }}>
-              ⬛ {dLabel}
-            </span>
-          )}
-          {boardFriendly !== undefined && (
-            <span style={boardFriendly ? styles.boardYes : styles.boardNo}>
-              {boardFriendly ? '🏂 Board-Friendly' : '⚠️ Cat-tracks'}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* CTA */}
-      <button
-        id={`view-trip-${trip.tripId}`}
-        className="btn btn-secondary"
-        style={{ marginTop: 'auto', width: '100%' }}
-        onClick={() => navigate(`/trips/${trip.tripId}`)}
+    <>
+      <article
+        className="card trip-card"
+        style={styles.card}
+        aria-label={`Trip to ${resortName}`}
       >
-        🔍 View Trip Details
-      </button>
-    </article>
+        {/* Accent bar coloured by difficulty */}
+        <div style={{ ...styles.accentBar, background: dColor }} aria-hidden="true" />
+
+        {/* Header */}
+        <div style={styles.header}>
+          <div>
+            <h3 style={styles.name}>{resortName}</h3>
+            {country && (
+              <div style={styles.country}>
+                <span aria-label={`Country: ${country}`}>{flag}</span>
+                <span>{country}</span>
+              </div>
+            )}
+          </div>
+          <div style={styles.nightsBubble} aria-label={`${nights} nights`}>
+            <div style={styles.nightsNum}>{nights}</div>
+            <div style={styles.nightsLabel}>nights</div>
+          </div>
+        </div>
+
+        {/* Dates */}
+        <div style={styles.dates}>
+          <span style={styles.dateIcon} aria-hidden="true">📅</span>
+          <span style={styles.dateText}>
+            {formatDate(trip.startDate)} → {formatDate(trip.endDate)}
+          </span>
+        </div>
+
+        {/* Badges */}
+        {(dLabel || boardFriendly !== undefined) && (
+          <div style={styles.badgesRow}>
+            {dLabel && (
+              <span style={{ ...styles.diffBadge, color: dColor, borderColor: `${dColor}40` }}>
+                ⬛ {dLabel}
+              </span>
+            )}
+            {boardFriendly !== undefined && (
+              <span style={boardFriendly ? styles.boardYes : styles.boardNo}>
+                {boardFriendly ? '🏂 Board-Friendly' : '⚠️ Cat-tracks'}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* CTAs */}
+        <div style={styles.ctaRow}>
+          <button
+            id={`view-trip-${trip.tripId}`}
+            className="btn btn-secondary"
+            style={{ flex: 1 }}
+            onClick={() => navigate(`/trips/${trip.tripId}`)}
+          >
+            🔍 View Details
+          </button>
+
+          {onDelete && (
+            <button
+              id={`delete-trip-${trip.tripId}`}
+              className="btn btn-danger"
+              style={{ flexShrink: 0, padding: '0.65rem 0.9rem' }}
+              onClick={() => setShowConfirm(true)}
+              disabled={deleting}
+              title="Delete this trip"
+              aria-label={`Delete trip to ${resortName}`}
+            >
+              {deleting ? '…' : '🗑'}
+            </button>
+          )}
+        </div>
+      </article>
+
+      {/* Confirm dialog */}
+      {showConfirm && (
+        <ConfirmDialog
+          title="Delete Trip?"
+          message={`Delete your trip to ${resortName}? This cannot be undone.`}
+          confirmText="Delete Trip"
+          onConfirm={handleDelete}
+          onCancel={() => setShowConfirm(false)}
+        />
+      )}
+    </>
   );
 }
 
@@ -171,6 +214,7 @@ const styles = {
     color: '#fcd34d', background: 'rgba(245,158,11,0.08)',
     border: '1px solid rgba(245,158,11,0.2)',
   },
+  ctaRow: { display: 'flex', gap: '0.5rem', marginTop: 'auto' },
 };
 
 export default TripCard;
