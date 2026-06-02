@@ -300,18 +300,18 @@ function PlanTripPage() {
                 <div className="card" style={{ gridColumn: '1 / -1' }}>
                   <h3 style={styles.builderTitle}>🌤️ Weather Forecast</h3>
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-                    Historical mock data for {forecast.resortName}
+                    Historical weather data (past 5 days) for {forecast.resortName}
                   </p>
                   <div style={styles.forecastStrip}>
                     {forecast.forecast.map(day => (
-                      <div key={day.logId} style={styles.forecastDay}>
+                      <div key={day.date} style={styles.forecastDay}>
                         <div style={styles.forecastIcon}>
-                          {WEATHER_ICONS(day.snowfall, day.temperatureCelsius)}
+                          {WEATHER_ICONS(day.snowfall, day.temperatureMax)}
                         </div>
                         <div style={styles.forecastDate}>{day.date}</div>
                         <div style={styles.forecastStat}>❄️ {day.snowfall} cm</div>
-                        <div style={styles.forecastStat}>{day.temperatureCelsius}°C</div>
-                        <div style={styles.forecastStat}>💨 {day.windSpeedKph} kph</div>
+                        <div style={styles.forecastStat}>{day.temperatureMax}°C / {day.temperatureMin}°C</div>
+                        <div style={styles.forecastStat}>💨 {day.windSpeed} kph</div>
                       </div>
                     ))}
                   </div>

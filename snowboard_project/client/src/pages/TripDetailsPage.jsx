@@ -244,15 +244,15 @@ function TripDetailsPage() {
       {forecast?.forecast?.length > 0 && (
         <section aria-label="Weather forecast" style={{ marginBottom: '2rem' }}>
           <h2 style={styles.sectionTitle}>🌤️ Weather Forecast</h2>
-          <p style={styles.sectionSub}>Historical mock data for {resort.name}</p>
+          <p style={styles.sectionSub}>Historical weather data (past 5 days) for {resort.name}</p>
           <div style={styles.forecastStrip}>
             {forecast.forecast.map(day => (
-              <div key={day.logId} className="card" style={styles.forecastDay}>
-                <div style={styles.forecastIcon}>{WEATHER_ICON(day.snowfall, day.temperatureCelsius)}</div>
+              <div key={day.date} className="card" style={styles.forecastDay}>
+                <div style={styles.forecastIcon}>{WEATHER_ICON(day.snowfall, day.temperatureMax)}</div>
                 <div style={styles.forecastDate}>{day.date}</div>
                 <div style={styles.forecastRow}>❄️ <strong>{day.snowfall} cm</strong> snowfall</div>
-                <div style={styles.forecastRow}>🌡️ <strong>{day.temperatureCelsius}°C</strong></div>
-                <div style={styles.forecastRow}>💨 <strong>{day.windSpeedKph} kph</strong></div>
+                <div style={styles.forecastRow}>🌡️ <strong>{day.temperatureMax}°C / {day.temperatureMin}°C</strong></div>
+                <div style={styles.forecastRow}>💨 <strong>{day.windSpeed} kph</strong></div>
               </div>
             ))}
           </div>

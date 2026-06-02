@@ -1,5 +1,4 @@
 const resorts = require("../models/resorts");
-const weatherLogs = require("../models/weatherLogs");
 
 // GET /resorts  (supports ?country= and ?difficultyLevel= filters)
 const getAllResorts = (req, res, next) => {
@@ -173,24 +172,52 @@ const deleteResort = (req, res, next) => {
 
 
 // GET /resorts/:id/forecast
-const getWeatherForecast = (req, res, next) => {
+const getWeatherForecast = async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
     const resort = resorts.find((r) => r.resortId === id);
 
     if (!resort) {
       return res.status(404).json({
-        success: false,
-        data: null,
+        success: false, data: null,
         error: { code: "NOT_FOUND", message: `Resort with id ${id} not found.`, details: {} }
       });
     }
 
-    const logs = weatherLogs.filter((w) => w.resortId === id);
+    if (resort.latitude == null || resort.longitude == null) {
+      return res.status(422).json({
+        success: false, data: null,
+        error: { code: "NO_COORDINATES", message: `Resort "${resort.name}" has no coordinates.`, details: {} }
+      });
+    }
+
+    const url = new URL("https://archive-api.open-meteo.com/v1/archive");
+    url.searchParams.set("latitude",  resort.latitude);
+    url.searchParams.set("longitude", resort.longitude);
+    url.searchParams.set("daily",     "temperature_2m_max,temperature_2m_min,snowfall_sum,precipitation_sum,wind_speed_10m_max");
+    url.searchParams.set("past_days", "5");
+    url.searchParams.set("timezone",  "auto");
+
+    const omRes = await fetch(url.toString());
+    if (!omRes.ok) {
+      throw new Error(`Open-Meteo error: ${omRes.status} ${omRes.statusText}`);
+    }
+    const omData = await omRes.json();
+
+    const { time, temperature_2m_max, temperature_2m_min, snowfall_sum, precipitation_sum, wind_speed_10m_max } = omData.daily;
+
+    const forecast = time.map((date, i) => ({
+      date,
+      temperatureMax:  temperature_2m_max[i],
+      temperatureMin:  temperature_2m_min[i],
+      snowfall:        snowfall_sum[i],
+      precipitation:   precipitation_sum[i],
+      windSpeed:       wind_speed_10m_max[i],
+    }));
 
     return res.status(200).json({
       success: true,
-      data: { resortId: resort.resortId, resortName: resort.name, forecast: logs },
+      data: { resortId: resort.resortId, resortName: resort.name, forecast },
       error: null
     });
   } catch (err) {
