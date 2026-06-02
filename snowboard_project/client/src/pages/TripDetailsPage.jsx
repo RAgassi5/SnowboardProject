@@ -14,12 +14,19 @@ import ErrorMessage from '../components/ErrorMessage';
 // ── Constants ─────────────────────────────────────────────────────────────────
 const LOCATION_TYPES = ['all', 'lift', 'slope', 'restaurant', 'park', 'rental'];
 const TYPE_ICONS     = { lift: '🚡', slope: '⛷️', restaurant: '🍽️', park: '🛹', rental: '🏪' };
-const WEATHER_ICON   = (snowfall, temp) => {
-  if (snowfall > 10) return '❄️';
-  if (snowfall > 0)  return '🌨️';
-  if (temp < -5)     return '🥶';
+const weatherIcon = (snowfall, precipitation, windMax, tempMax) => {
+  const stormy = (windMax > 35) || (precipitation > 8 && windMax > 20);
+  if (stormy && (snowfall > 0 || precipitation > 1)) return '⛈️';
+  if (snowfall > 0)        return '🌨️';
+  if (precipitation > 5)   return '🌧️';
+  if (precipitation > 0.5) return '⛅';
+  if (tempMax >= 15)       return '☀️';
+  if (tempMax >= 3)        return '⛅';
   return '☁️';
 };
+const CONFIDENCE_COLOR = { high: '#22c55e', medium: '#4f8ef7', low: '#f59e0b' };
+const CONFIDENCE_BG    = { high: 'rgba(34,197,94,0.12)', medium: 'rgba(79,142,247,0.12)', low: 'rgba(245,158,11,0.12)' };
+const CONFIDENCE_LABEL = { high: 'Live forecast', medium: 'Historical', low: 'Typical avg' };
 const DIFFICULTY_COLORS = {
   1: '#22c55e', 2: '#38d9c0', 3: '#4f8ef7', 4: '#f59e0b', 5: '#ef4444',
 };
@@ -86,7 +93,7 @@ function TripDetailsPage() {
 
         const [resortData, forecastData, locData] = await Promise.all([
           getResortById(tripData.resortId),
-          getResortForecast(tripData.resortId),
+          getResortForecast(tripData.resortId, tripData.startDate, tripData.endDate),
           getResortLocations(tripData.resortId),
         ]);
 
@@ -240,19 +247,41 @@ function TripDetailsPage() {
         </div>
       </section>
 
-      {/* ── SECTION 2: Weather Forecast ─────────────────────────────────── */}
-      {forecast?.forecast?.length > 0 && (
+      {/* ── SECTION 2: Weather Conditions ────────────────────────────────── */}
+      {forecast?.days?.length > 0 && (
         <section aria-label="Weather forecast" style={{ marginBottom: '2rem' }}>
-          <h2 style={styles.sectionTitle}>🌤️ Weather Forecast</h2>
-          <p style={styles.sectionSub}>Historical weather data (past 5 days) for {resort.name}</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
+            <h2 style={{ ...styles.sectionTitle, marginBottom: 0 }}>🌤️ Weather Conditions</h2>
+            <span style={{
+              fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.65rem',
+              borderRadius: 'var(--radius-full)',
+              background: CONFIDENCE_BG[forecast.confidence],
+              color: CONFIDENCE_COLOR[forecast.confidence],
+              textTransform: 'uppercase', letterSpacing: '0.06em',
+            }}>
+              {CONFIDENCE_LABEL[forecast.confidence]}
+            </span>
+          </div>
+          <p style={styles.sectionSub}>
+            {forecast.label} for {resort.name}
+            {forecast.partialForecast && ' (partial — forecast horizon reached)'}
+          </p>
+          {forecast.summary && (
+            <div style={styles.forecastSummary}>
+              <span>Avg high: <strong>{forecast.summary.avgTempMax}°C</strong></span>
+              <span>Avg low: <strong>{forecast.summary.avgTempMin}°C</strong></span>
+              <span>❄️ Total snow: <strong>{forecast.summary.totalSnowfall} cm</strong></span>
+              <span>💨 Avg wind: <strong>{forecast.summary.avgWindMax} kph</strong></span>
+            </div>
+          )}
           <div style={styles.forecastStrip}>
-            {forecast.forecast.map(day => (
+            {forecast.days.slice(0, 7).map(day => (
               <div key={day.date} className="card" style={styles.forecastDay}>
-                <div style={styles.forecastIcon}>{WEATHER_ICON(day.snowfall, day.temperatureMax)}</div>
+                <div style={styles.forecastIcon}>{weatherIcon(day.snowfall, day.precipitation, day.windMax, day.tempMax)}</div>
                 <div style={styles.forecastDate}>{day.date}</div>
-                <div style={styles.forecastRow}>❄️ <strong>{day.snowfall} cm</strong> snowfall</div>
-                <div style={styles.forecastRow}>🌡️ <strong>{day.temperatureMax}°C / {day.temperatureMin}°C</strong></div>
-                <div style={styles.forecastRow}>💨 <strong>{day.windSpeed} kph</strong></div>
+                <div style={styles.forecastRow}>❄️ <strong>{day.snowfall ?? 0} cm</strong> snowfall</div>
+                <div style={styles.forecastRow}>🌡️ <strong>{day.tempMax}°C / {day.tempMin}°C</strong></div>
+                <div style={styles.forecastRow}>💨 <strong>{day.windMax} kph</strong></div>
               </div>
             ))}
           </div>
@@ -430,6 +459,12 @@ const styles = {
   },
   forecastStrip: {
     display: 'flex', flexWrap: 'wrap', gap: '1rem',
+  },
+  forecastSummary: {
+    display: 'flex', flexWrap: 'wrap', gap: '1rem',
+    marginBottom: '1rem', paddingBottom: '0.75rem',
+    borderBottom: '1px solid var(--border-subtle)',
+    fontSize: '0.82rem', color: 'var(--text-secondary)',
   },
   forecastDay: {
     flex: '1 1 150px', display: 'flex', flexDirection: 'column',

@@ -22,12 +22,20 @@ const validate = ({ startDate, endDate, skillLevel, sportType }) => {
   return errs;
 };
 
-const WEATHER_ICONS = (snowfall, temp) => {
-  if (snowfall > 10) return '❄️';
-  if (snowfall > 0)  return '🌨️';
-  if (temp < -5)     return '🥶';
+const weatherIcon = (snowfall, precipitation, windMax, tempMax) => {
+  const stormy = (windMax > 35) || (precipitation > 8 && windMax > 20);
+  if (stormy && (snowfall > 0 || precipitation > 1)) return '⛈️';
+  if (snowfall > 0)        return '🌨️';
+  if (precipitation > 5)   return '🌧️';
+  if (precipitation > 0.5) return '⛅';
+  if (tempMax >= 15)       return '☀️';
+  if (tempMax >= 3)        return '⛅';
   return '☁️';
 };
+
+const CONFIDENCE_COLOR = { high: '#22c55e', medium: '#4f8ef7', low: '#f59e0b' };
+const CONFIDENCE_BG    = { high: 'rgba(34,197,94,0.12)', medium: 'rgba(79,142,247,0.12)', low: 'rgba(245,158,11,0.12)' };
+const CONFIDENCE_LABEL = { high: 'Live forecast', medium: 'Historical', low: 'Typical avg' };
 
 // ── Component ─────────────────────────────────────────────────────────────────
 function PlanTripPage() {
@@ -101,7 +109,7 @@ function PlanTripPage() {
 
     try {
       const [forecastData, summaryData] = await Promise.all([
-        getResortForecast(rec.resortId),
+        getResortForecast(rec.resortId, form.endDate ? form.startDate : null, form.endDate || null),
         getResortSummary({ resortId: rec.resortId, skillLevel: parseInt(form.skillLevel) }),
       ]);
       setForecast(forecastData);
@@ -296,22 +304,42 @@ function PlanTripPage() {
               )}
 
               {/* Forecast panel */}
-              {forecast && forecast.forecast?.length > 0 && (
+              {forecast && forecast.days?.length > 0 && (
                 <div className="card" style={{ gridColumn: '1 / -1' }}>
-                  <h3 style={styles.builderTitle}>🌤️ Weather Forecast</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                    <h3 style={{ ...styles.builderTitle, marginBottom: 0 }}>🌤️ Weather Conditions</h3>
+                    <span style={{
+                      fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.65rem',
+                      borderRadius: 'var(--radius-full)',
+                      background: CONFIDENCE_BG[forecast.confidence],
+                      color: CONFIDENCE_COLOR[forecast.confidence],
+                      textTransform: 'uppercase', letterSpacing: '0.06em',
+                    }}>
+                      {CONFIDENCE_LABEL[forecast.confidence]}
+                    </span>
+                  </div>
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-                    Historical weather data (past 5 days) for {forecast.resortName}
+                    {forecast.label} for {forecast.resort?.name}
+                    {forecast.partialForecast && ' (partial — forecast horizon reached)'}
                   </p>
+                  {forecast.summary && (
+                    <div style={styles.forecastSummary}>
+                      <span>Avg high: <strong>{forecast.summary.avgTempMax}°C</strong></span>
+                      <span>Avg low: <strong>{forecast.summary.avgTempMin}°C</strong></span>
+                      <span>❄️ Total snow: <strong>{forecast.summary.totalSnowfall} cm</strong></span>
+                      <span>💨 Avg wind: <strong>{forecast.summary.avgWindMax} kph</strong></span>
+                    </div>
+                  )}
                   <div style={styles.forecastStrip}>
-                    {forecast.forecast.map(day => (
+                    {forecast.days.slice(0, 7).map(day => (
                       <div key={day.date} style={styles.forecastDay}>
                         <div style={styles.forecastIcon}>
-                          {WEATHER_ICONS(day.snowfall, day.temperatureMax)}
+                          {weatherIcon(day.snowfall, day.precipitation, day.windMax, day.tempMax)}
                         </div>
                         <div style={styles.forecastDate}>{day.date}</div>
-                        <div style={styles.forecastStat}>❄️ {day.snowfall} cm</div>
-                        <div style={styles.forecastStat}>{day.temperatureMax}°C / {day.temperatureMin}°C</div>
-                        <div style={styles.forecastStat}>💨 {day.windSpeed} kph</div>
+                        <div style={styles.forecastStat}>❄️ {day.snowfall ?? 0} cm</div>
+                        <div style={styles.forecastStat}>{day.tempMax}°C / {day.tempMin}°C</div>
+                        <div style={styles.forecastStat}>💨 {day.windMax} kph</div>
                       </div>
                     ))}
                   </div>
@@ -422,6 +450,12 @@ const styles = {
   },
   forecastStrip: {
     display: 'flex', flexWrap: 'wrap', gap: '1rem',
+  },
+  forecastSummary: {
+    display: 'flex', flexWrap: 'wrap', gap: '1rem',
+    marginBottom: '1rem', paddingBottom: '0.75rem',
+    borderBottom: '1px solid var(--border-subtle)',
+    fontSize: '0.82rem', color: 'var(--text-secondary)',
   },
   forecastDay: {
     display: 'flex', flexDirection: 'column', alignItems: 'center',
