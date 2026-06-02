@@ -14,6 +14,17 @@ const authRoutes = require("./routes/authRoutes");
 app.use(express.json());
 app.use(logger);
 
+// ─── CORS — allow React dev server (port 5173) to reach this API ──────────────
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-user-role, x-user-id");
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+  next();
+});
+
 // ─── Route Mounting ───────────────────────────────────────────────────────────
 app.use("/users", userRoutes);
 app.use("/resorts", resortRoutes);
@@ -22,8 +33,21 @@ app.use("/resort-locations", resortLocationRoutes);
 app.use("/", aiRoutes);
 app.use("/auth", authRoutes);
 
+// ─── 404 Fallback — unknown endpoints ────────────────────────────────────────
+app.use((req, res) => {
+  return res.status(404).json({
+    success: false,
+    data: null,
+    error: {
+      code: "NOT_FOUND",
+      message: `Cannot ${req.method} ${req.originalUrl}`,
+      details: {}
+    }
+  });
+});
+
 // ─── Global Error Handler ─────────────────────────────────────────────────────
-// Catches any unexpected errors thrown in controllers/routes
+// Catches any unexpected errors forwarded via next(err) from controllers/routes
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err);
   return res.status(500).json({
@@ -31,7 +55,7 @@ app.use((err, req, res, next) => {
     data: null,
     error: {
       code: "INTERNAL_SERVER_ERROR",
-      message: "An unexpected error occurred. Please try again later.",
+      message: err.message || "An unexpected error occurred. Please try again later.",
       details: {}
     }
   });
