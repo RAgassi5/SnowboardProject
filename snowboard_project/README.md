@@ -9,7 +9,7 @@
 
 ```
 snowboard_project/
-├── client/          ← React frontend (port 3001)
+├── client/          ← React frontend (port 5173)
 │   ├── public/
 │   └── src/
 ├── server/          ← Express backend (port 3000)
@@ -40,10 +40,10 @@ node server.js
 cd client
 npm install
 npm start
-# → Running on http://localhost:3001
+# → Running on http://localhost:5173
 ```
 
-Then open **http://localhost:3001** in your browser.
+Then open **http://localhost:5173** in your browser.
 
 ---
 
@@ -148,4 +148,4 @@ All API calls go through a central `request()` helper that:
 | Error handling from backend | ✅ Universal response unwrapping |
 | Role-based header (`x-user-role`) | ✅ Auto-attached on every request |
 | Backend error middleware | ✅ `try/catch → next(err)` in all controllers |
-| CORS for React dev server | ✅ port 3001 allowed |
+| CORS for React dev server | ✅ port 5173 allowed |

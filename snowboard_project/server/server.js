@@ -14,9 +14,9 @@ const authRoutes = require("./routes/authRoutes");
 app.use(express.json());
 app.use(logger);
 
-// ─── CORS — allow React dev server (port 3001) to reach this API ──────────────
+// ─── CORS — allow React dev server (port 5173) to reach this API ──────────────
 app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "http://localhost:3001");
+  res.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-user-role, x-user-id");
   if (req.method === "OPTIONS") {
