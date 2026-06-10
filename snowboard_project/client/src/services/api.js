@@ -173,8 +173,10 @@ export const getResortById = (id) =>
  * GET /resorts/:id/forecast
  * Returns { resortId, resortName, forecast: [...weatherLogs] }
  */
-export const getResortForecast = (id) =>
-  request(`/resorts/${id}/forecast`);
+export const getResortForecast = (id, startDate = null, endDate = null) => {
+  const qs = startDate && endDate ? `?startDate=${startDate}&endDate=${endDate}` : '';
+  return request(`/resorts/${id}/forecast${qs}`);
+};
 
 /**
  * GET /resorts/:id/locations
