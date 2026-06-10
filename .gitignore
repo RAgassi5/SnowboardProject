@@ -1,1 +1,9 @@
 .DS_Store
+
+# ── Environment files ─────────────────────────────────────────────
+.env
+.env.*
+
+# ── AI / Claude Code ──────────────────────────────────────────────
+.claude/
+CLAUDE.md
