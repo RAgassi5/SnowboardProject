@@ -8,7 +8,7 @@ import {
   getFriends, inviteFriendToTrip,
 } from '../services/api';
 import ConfirmDialog from '../components/ConfirmDialog';
-import GearAdvisorModal from '../components/GearAdvisorModal';
+import GearChatModal from '../components/GearChatModal';
 import FloatingChat from '../components/FloatingChat';
 import DataTable from '../components/DataTable';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -622,7 +622,7 @@ function TripDetailsPage() {
       </section>
 
       {/* ── Gear Advisor floating button + modal ────────────────────────── */}
-      <GearAdvisorModal resortId={resort.resortId} resortName={resort.name} />
+      <GearChatModal trip={trip} resort={resort} forecast={forecast} />
 
       {/* ── Floating group chat (creator + approved members only) ────────── */}
       {hasFullAccess && (

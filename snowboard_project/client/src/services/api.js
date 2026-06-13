@@ -280,6 +280,32 @@ export const getResortAssistant = (payload, role) =>
     role: role ?? getStoredRole()
   });
 
+/**
+ * POST /gear-chat
+ * Requires x-user-role header (any valid role).
+ * Payload: { message, history, context: { tripId, resort, trip, rider, forecast } }
+ * Returns { reply }
+ */
+export const sendGearChatMessage = (payload) =>
+  request('/gear-chat', {
+    method: 'POST',
+    body: payload,
+  });
+
+/**
+ * GET /gear-chat/:tripId
+ * Returns saved conversation history for the current user + trip as [{ role, content }]
+ */
+export const getGearChatHistory = (tripId) =>
+  request(`/gear-chat/${tripId}`);
+
+/**
+ * DELETE /gear-chat/:tripId
+ * Deletes all saved gear chat messages for the current user + trip.
+ */
+export const resetGearChatHistory = (tripId) =>
+  request(`/gear-chat/${tripId}`, { method: 'DELETE' });
+
 // ═════════════════════════════════════════════════════════════════════════════
 // USERS
 // ═════════════════════════════════════════════════════════════════════════════
