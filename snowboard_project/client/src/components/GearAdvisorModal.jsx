@@ -194,7 +194,7 @@ function GearAdvisorModal({ resortId, resortName }) {
 const styles = {
   fab: {
     position: 'fixed',
-    bottom: '2rem',
+    bottom: '5rem',
     right: '2rem',
     zIndex: 900,
     boxShadow: '0 4px 24px rgba(79,142,247,0.4)',

@@ -298,7 +298,7 @@ const getJoinedTrips = async (req, res, next) => {
         model: Trip,
         include: [
           { model: User,   as: 'creator', attributes: ['id', 'firstName', 'lastName'] },
-          { model: Resort, attributes: ['id', 'name', 'country', 'difficultyLevel'] }
+          { model: Resort, attributes: ['id', 'name', 'country', 'difficultyLevel', 'snowboardFriendly'] }
         ]
       }]
     });

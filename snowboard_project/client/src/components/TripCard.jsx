@@ -22,7 +22,7 @@ const DIFFICULTY_LABELS = {
  *   resort     {object}    — enriched resort object (may be null if not loaded yet)
  *   onDelete   {function}  — optional; called with (tripId) after user confirms delete
  */
-function TripCard({ trip, resort, onDelete, unreadCount = 0 }) {
+function TripCard({ trip, resort, onDelete, unreadCount = 0, creator = null }) {
   const navigate = useNavigate();
   const [showConfirm, setShowConfirm] = useState(false);
   const [deleting,    setDeleting]    = useState(false);
@@ -76,15 +76,23 @@ function TripCard({ trip, resort, onDelete, unreadCount = 0 }) {
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
-          {unreadCount > 0 && (
-            <div style={styles.unreadBadge} aria-label={`${unreadCount} unread messages`}>
-              {unreadCount > 99 ? '99+' : unreadCount}
+            {unreadCount > 0 && (
+              <div style={styles.unreadBadge} aria-label={`${unreadCount} unread messages`}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </div>
+            )}
+            {/* Nights + privacy stacked vertically */}
+            <div style={styles.rightStack}>
+              <div style={styles.nightsBubble} aria-label={`${nights} nights`}>
+                <div style={styles.nightsNum}>{nights}</div>
+                <div style={styles.nightsLabel}>nights</div>
+              </div>
+              {trip.privacy && (
+                <span style={styles.privacyPill}>
+                  {{ public: 'Public', 'friends-only': 'Friends Only', private: 'Private' }[trip.privacy]}
+                </span>
+              )}
             </div>
-          )}
-          <div style={styles.nightsBubble} aria-label={`${nights} nights`}>
-            <div style={styles.nightsNum}>{nights}</div>
-            <div style={styles.nightsLabel}>nights</div>
-          </div>
           </div>
         </div>
 
@@ -95,6 +103,13 @@ function TripCard({ trip, resort, onDelete, unreadCount = 0 }) {
             {formatDate(trip.startDate)} → {formatDate(trip.endDate)}
           </span>
         </div>
+
+        {/* Creator */}
+        {creator && (
+          <div style={styles.creatorRow}>
+            Created by {creator.firstName} {creator.lastName}
+          </div>
+        )}
 
         {/* Badges */}
         {(dLabel || boardFriendly !== undefined) && (
@@ -107,12 +122,6 @@ function TripCard({ trip, resort, onDelete, unreadCount = 0 }) {
             {boardFriendly !== undefined && (
               <span style={boardFriendly ? styles.boardYes : styles.boardNo}>
                 {boardFriendly ? '🏂 Board-Friendly' : '⚠️ Cat-tracks'}
-              </span>
-            )}
-            {trip.privacy && (
-              <span style={styles.privacyBadge}>
-                {{ public: '🌍', 'friends-only': '👥', private: '🔒' }[trip.privacy]}{' '}
-                {{ public: 'Public', 'friends-only': 'Friends Only', private: 'Private' }[trip.privacy]}
               </span>
             )}
           </div>
@@ -240,11 +249,29 @@ const styles = {
     alignSelf: 'flex-start',
     marginTop: '0.2rem',
   },
-  privacyBadge: {
-    fontSize: '0.72rem', fontWeight: 600,
-    padding: '0.2rem 0.55rem', borderRadius: 'var(--radius-sm)',
-    color: 'var(--text-muted)', background: 'rgba(255,255,255,0.05)',
+  rightStack: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.3rem',
+    flexShrink: 0,
+  },
+  privacyPill: {
+    fontSize: '0.58rem',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.06em',
+    color: 'var(--text-muted)',
+    background: 'rgba(255,255,255,0.05)',
     border: '1px solid var(--border-subtle)',
+    borderRadius: 'var(--radius-sm)',
+    padding: '0.15rem 0.45rem',
+    lineHeight: 1,
+    whiteSpace: 'nowrap',
+  },
+  creatorRow: {
+    fontSize: '0.75rem',
+    color: 'var(--text-muted)',
   },
 };
 

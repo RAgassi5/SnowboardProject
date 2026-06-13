@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   getUserTrips, getResorts, getStoredUser, deleteTrip,
   getUserInvitations, approveTripMember, removeTripMember, getUnreadCounts,
+  getJoinedTrips,
 } from '../services/api';
 import { getSocket, connectSocket } from '../services/socket';
 import TripCard from '../components/TripCard';
@@ -14,6 +15,7 @@ function TripsPage() {
 
   const [trips,        setTrips]        = useState([]);
   const [resorts,      setResorts]      = useState([]);
+  const [joinedTrips,  setJoinedTrips]  = useState([]);
   const [invitations,  setInvitations]  = useState([]);
   const [unreadCounts, setUnreadCounts] = useState({});
   const [loading,      setLoading]      = useState(true);
@@ -27,17 +29,19 @@ function TripsPage() {
       setLoading(true);
       setError('');
       try {
-        const [tripsData, resortsData, invitationsData, unreadData] = await Promise.all([
+        const [tripsData, resortsData, invitationsData, unreadData, joinedData] = await Promise.all([
           getUserTrips(user.userId),
           getResorts(),
           getUserInvitations(user.userId),
           getUnreadCounts(user.userId),
+          getJoinedTrips(user.userId),
         ]);
         if (!cancelled) {
           setTrips(tripsData);
           setResorts(resortsData);
           setInvitations(invitationsData ?? []);
           setUnreadCounts(unreadData ?? {});
+          setJoinedTrips(joinedData ?? []);
         }
       } catch (err) {
         if (!cancelled) setError(err.message);
@@ -113,8 +117,8 @@ function TripsPage() {
       {loading && <LoadingSpinner message="Loading your trips…" />}
       {!loading && error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
 
-      {/* Empty */}
-      {!loading && !error && trips.length === 0 && (
+      {/* Empty — only when both sections are empty */}
+      {!loading && !error && trips.length === 0 && joinedTrips.length === 0 && (
         <div className="empty-state">
           <span className="empty-icon">🏔️</span>
           <h3>You have no planned trips yet</h3>
@@ -168,20 +172,39 @@ function TripsPage() {
         </div>
       )}
 
-      {/* Trip cards grid — TripCard used for every trip (≥3 reuse) */}
+      {/* Trips I Created */}
       {!loading && !error && enrichedTrips.length > 0 && (
-        <>
-          <div style={styles.tripCount}>
-            {enrichedTrips.length} trip{enrichedTrips.length !== 1 ? 's' : ''} planned
+        <section style={{ marginBottom: '3rem' }}>
+          <h2 style={styles.sectionHeader}>Trips I Created</h2>
+          <div style={styles.sectionCount}>
+            {enrichedTrips.length} trip{enrichedTrips.length !== 1 ? 's' : ''}
           </div>
           <div className="grid-3">
             {enrichedTrips.map(({ resort, ...trip }) => (
               <TripCard key={trip.tripId} trip={trip} resort={resort}
                 onDelete={handleDeleteTrip}
+                creator={{ firstName: user.firstName, lastName: user.lastName }}
                 unreadCount={unreadCounts[trip.tripId] ?? 0} />
             ))}
           </div>
-        </>
+        </section>
+      )}
+
+      {/* Trips I Joined */}
+      {!loading && !error && joinedTrips.length > 0 && (
+        <section style={{ marginBottom: '2rem' }}>
+          <h2 style={styles.sectionHeader}>Trips I Joined</h2>
+          <div style={styles.sectionCount}>
+            {joinedTrips.length} trip{joinedTrips.length !== 1 ? 's' : ''}
+          </div>
+          <div className="grid-3">
+            {joinedTrips.map(trip => (
+              <TripCard key={trip.tripId} trip={trip} resort={trip.resort}
+                creator={trip.creator}
+                unreadCount={unreadCounts[trip.tripId] ?? 0} />
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );
@@ -193,8 +216,12 @@ const styles = {
     justifyContent: 'space-between', gap: '1rem',
     flexWrap: 'wrap', marginBottom: '2rem',
   },
-  tripCount: {
-    fontSize: '0.85rem', color: 'var(--text-muted)',
+  sectionHeader: {
+    fontSize: '1rem', fontWeight: 700,
+    color: 'var(--text-primary)', marginBottom: '0.25rem',
+  },
+  sectionCount: {
+    fontSize: '0.82rem', color: 'var(--text-muted)',
     marginBottom: '1rem',
   },
   invitationsSection: {

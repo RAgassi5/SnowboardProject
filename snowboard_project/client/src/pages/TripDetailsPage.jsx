@@ -9,7 +9,7 @@ import {
 } from '../services/api';
 import ConfirmDialog from '../components/ConfirmDialog';
 import GearAdvisorModal from '../components/GearAdvisorModal';
-import ChatRoom from '../components/ChatRoom';
+import FloatingChat from '../components/FloatingChat';
 import DataTable from '../components/DataTable';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
@@ -621,21 +621,13 @@ function TripDetailsPage() {
         )}
       </section>
 
-      {/* ── SECTION 7: Group Chat ────────────────────────────────────────── */}
-      <section className="card" style={{ marginBottom: '2rem' }} aria-label="Group chat">
-        <h2 style={styles.sectionTitle}>💬 Group Chat</h2>
-        {hasFullAccess ? (
-          <>
-            <p style={styles.sectionSub}>Live chat for everyone on this trip</p>
-            <ChatRoom tripId={parseInt(tripId)} />
-          </>
-        ) : (
-          <p style={styles.sectionSub}>Join this trip to access the group chat.</p>
-        )}
-      </section>
-
       {/* ── Gear Advisor floating button + modal ────────────────────────── */}
       <GearAdvisorModal resortId={resort.resortId} resortName={resort.name} />
+
+      {/* ── Floating group chat (creator + approved members only) ────────── */}
+      {hasFullAccess && (
+        <FloatingChat tripId={parseInt(tripId)} resortName={resort.name} />
+      )}
 
       {/* ── Delete confirm dialog ────────────────────────────────────────── */}
       {showDeleteConfirm && (
