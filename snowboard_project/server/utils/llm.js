@@ -50,4 +50,28 @@ async function chat(systemPrompt, userPrompt, opts = {}) {
   return completion.choices[0]?.message?.content ?? '';
 }
 
-module.exports = { chat };
+/**
+ * Multi-turn chat helper — accepts a full messages array (role/content pairs).
+ * @param {Array<{role: string, content: string}>} messages
+ * @param {object} opts  — { model, maxTokens, temperature }
+ * @returns {Promise<string>}
+ */
+async function chatWithHistory(messages, opts = {}) {
+  const client = getClient();
+  const {
+    model       = DEFAULT_MODEL,
+    maxTokens   = 600,
+    temperature = 0.65,
+  } = opts;
+
+  const completion = await client.chat.completions.create({
+    model,
+    max_tokens:  maxTokens,
+    temperature,
+    messages,
+  });
+
+  return completion.choices[0]?.message?.content?.trim() ?? '';
+}
+
+module.exports = { chat, chatWithHistory };

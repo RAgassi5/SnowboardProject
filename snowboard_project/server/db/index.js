@@ -21,7 +21,8 @@ const FriendRequest  = require('./models/FriendRequest')(sequelize);
 const Friendship     = require('./models/Friendship')(sequelize);
 const TripMember     = require('./models/TripMember')(sequelize);
 const TripMessage    = require('./models/TripMessage')(sequelize);
-const TripReadStatus = require('./models/TripReadStatus')(sequelize);
+const TripReadStatus    = require('./models/TripReadStatus')(sequelize);
+const GearChatMessage   = require('./models/GearChatMessage')(sequelize);
 
 // ── Associations ──────────────────────────────────────────────────────────────
 
@@ -52,6 +53,11 @@ TripReadStatus.belongsTo(Trip, { foreignKey: 'tripId' });
 User.hasMany(TripReadStatus, { foreignKey: 'userId' });
 Trip.hasMany(TripReadStatus, { foreignKey: 'tripId' });
 
+GearChatMessage.belongsTo(User, { foreignKey: 'userId' });
+GearChatMessage.belongsTo(Trip, { foreignKey: 'tripId' });
+User.hasMany(GearChatMessage, { foreignKey: 'userId' });
+Trip.hasMany(GearChatMessage, { foreignKey: 'tripId' });
+
 User.hasMany(FriendRequest, { foreignKey: 'senderId', as: 'sentRequests' });
 User.hasMany(FriendRequest, { foreignKey: 'receiverId', as: 'receivedRequests' });
 FriendRequest.belongsTo(User, { foreignKey: 'senderId', as: 'sender' });
@@ -72,5 +78,6 @@ module.exports = {
   Friendship,
   TripMember,
   TripMessage,
-  TripReadStatus
+  TripReadStatus,
+  GearChatMessage,
 };

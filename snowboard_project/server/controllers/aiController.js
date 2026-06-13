@@ -1,9 +1,9 @@
 'use strict';
-const { Resort, ResortLocation } = require('../db');
+const { Resort, ResortLocation, GearChatMessage } = require('../db');
 const { VALID_SKILL_LEVELS, SKILL_LEVEL_LABELS, DIFFICULTY_LABELS } = require('../models/skillLevels');
 const { GEAR_MAP }             = require('../models/gearRecommendations');
 const { LOCATION_SUGGESTIONS } = require('../models/locationSuggestions');
-const { chat }                 = require('../utils/llm');
+const { chat, chatWithHistory } = require('../utils/llm');
 
 const VALID_SPORT_TYPES = ['ski', 'snowboard'];
 
@@ -253,4 +253,102 @@ Write 1–2 sentences of practical ${sportType}-specific advice for visiting ${l
   }
 };
 
-module.exports = { getResortSummary, recommendResorts, gearRecommendation, resortAssistant };
+// ── POST /gear-chat ───────────────────────────────────────────────────────────
+const gearChat = async (req, res) => {
+  try {
+    const { message, history = [], context = {} } = req.body;
+    if (!message) {
+      return res.status(400).json({ success: false, data: null, error: { code: 'MISSING_MESSAGE', message: 'message is required', details: null } });
+    }
+
+    const { tripId: ctxTripId, resort = {}, trip = {}, rider = {}, forecast = null } = context;
+    const userId = parseInt(req.headers['x-user-id']);
+    const tripId = parseInt(ctxTripId);
+
+    const nights = (trip.startDate && trip.endDate)
+      ? Math.round((new Date(trip.endDate) - new Date(trip.startDate)) / 86400000)
+      : null;
+
+    const systemLines = [
+      'You are a ski and snowboard gear expert helping a rider pack for an upcoming mountain trip.',
+      '',
+      'Trip context:',
+      `- Resort: ${resort.name ?? 'Unknown'}, ${resort.country ?? ''}`,
+      `- Elevation: ${resort.elevation ? resort.elevation + 'm' : 'Unknown'} | Terrain: ${resort.terrainType ?? 'Unknown'}`,
+      `- Snowboard-friendly: ${resort.snowboardFriendly ? 'Yes' : 'No'}`,
+      `- Difficulty: ${resort.difficultyLevel ?? '?'}/5`,
+      `- Dates: ${trip.startDate ?? '?'} → ${trip.endDate ?? '?'}${nights ? ` (${nights} nights)` : ''}`,
+      `- Rider: ${rider.sportType ?? 'Unknown'} | Skill level: ${rider.skillLevel ?? '?'}/5 (${SKILL_LEVEL_LABELS[rider.skillLevel] ?? ''})`,
+    ];
+
+    if (forecast?.summary) {
+      systemLines.push(
+        '',
+        `Weather during the trip (${forecast.confidence ?? 'unknown'} confidence):`,
+        `- Avg temps: ${forecast.summary.avgTempMin}°C – ${forecast.summary.avgTempMax}°C`,
+        `- Total snowfall: ${forecast.summary.totalSnowfall}cm`,
+        `- Avg max wind: ${forecast.summary.avgWindMax} km/h`,
+      );
+    }
+
+    systemLines.push(
+      '',
+      'Keep answers concise, practical, and specific to this trip. Focus on gear, packing, and clothing layers.',
+      'Never ask the user to repeat context — you already have it all above.',
+    );
+
+    const userMessage = message === '__init__'
+      ? 'Please give me a tailored packing list for my upcoming trip.'
+      : message;
+
+    const messages = [
+      { role: 'system', content: systemLines.join('\n') },
+      ...history,
+      { role: 'user', content: userMessage },
+    ];
+
+    const reply = await chatWithHistory(messages, { maxTokens: 600, temperature: 0.65 });
+
+    // Persist both turns to DB (fire-and-forget; non-critical)
+    if (tripId && userId) {
+      GearChatMessage.bulkCreate([
+        { tripId, userId, role: 'user',      content: userMessage },
+        { tripId, userId, role: 'assistant', content: reply },
+      ]).catch(() => {});
+    }
+
+    return res.json({ success: true, data: { reply }, error: null });
+  } catch {
+    return res.json({ success: true, data: { reply: "I'm having trouble connecting right now. Try asking again in a moment." }, error: null });
+  }
+};
+
+// ── GET /gear-chat/:tripId ────────────────────────────────────────────────────
+const getGearChat = async (req, res) => {
+  try {
+    const userId = parseInt(req.headers['x-user-id']);
+    const tripId = parseInt(req.params.tripId);
+    const rows = await GearChatMessage.findAll({
+      where: { userId, tripId },
+      order: [['createdAt', 'ASC']],
+      attributes: ['role', 'content'],
+    });
+    return res.json({ success: true, data: rows.map(r => ({ role: r.role, content: r.content })), error: null });
+  } catch {
+    return res.json({ success: true, data: [], error: null });
+  }
+};
+
+// ── DELETE /gear-chat/:tripId ─────────────────────────────────────────────────
+const resetGearChat = async (req, res) => {
+  try {
+    const userId = parseInt(req.headers['x-user-id']);
+    const tripId = parseInt(req.params.tripId);
+    await GearChatMessage.destroy({ where: { userId, tripId } });
+    return res.json({ success: true, data: null, error: null });
+  } catch {
+    return res.json({ success: true, data: null, error: null });
+  }
+};
+
+module.exports = { getResortSummary, recommendResorts, gearRecommendation, resortAssistant, gearChat, getGearChat, resetGearChat };
