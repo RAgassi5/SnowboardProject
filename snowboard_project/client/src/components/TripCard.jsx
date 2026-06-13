@@ -22,7 +22,7 @@ const DIFFICULTY_LABELS = {
  *   resort     {object}    — enriched resort object (may be null if not loaded yet)
  *   onDelete   {function}  — optional; called with (tripId) after user confirms delete
  */
-function TripCard({ trip, resort, onDelete }) {
+function TripCard({ trip, resort, onDelete, unreadCount = 0 }) {
   const navigate = useNavigate();
   const [showConfirm, setShowConfirm] = useState(false);
   const [deleting,    setDeleting]    = useState(false);
@@ -75,9 +75,16 @@ function TripCard({ trip, resort, onDelete }) {
               </div>
             )}
           </div>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
+          {unreadCount > 0 && (
+            <div style={styles.unreadBadge} aria-label={`${unreadCount} unread messages`}>
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </div>
+          )}
           <div style={styles.nightsBubble} aria-label={`${nights} nights`}>
             <div style={styles.nightsNum}>{nights}</div>
             <div style={styles.nightsLabel}>nights</div>
+          </div>
           </div>
         </div>
 
@@ -100,6 +107,12 @@ function TripCard({ trip, resort, onDelete }) {
             {boardFriendly !== undefined && (
               <span style={boardFriendly ? styles.boardYes : styles.boardNo}>
                 {boardFriendly ? '🏂 Board-Friendly' : '⚠️ Cat-tracks'}
+              </span>
+            )}
+            {trip.privacy && (
+              <span style={styles.privacyBadge}>
+                {{ public: '🌍', 'friends-only': '👥', private: '🔒' }[trip.privacy]}{' '}
+                {{ public: 'Public', 'friends-only': 'Friends Only', private: 'Private' }[trip.privacy]}
               </span>
             )}
           </div>
@@ -215,6 +228,24 @@ const styles = {
     border: '1px solid rgba(245,158,11,0.2)',
   },
   ctaRow: { display: 'flex', gap: '0.5rem', marginTop: 'auto' },
+  unreadBadge: {
+    minWidth: 20, height: 20,
+    borderRadius: 'var(--radius-full)',
+    background: '#ef4444',
+    color: '#fff',
+    fontSize: '0.7rem', fontWeight: 700,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: '0 5px',
+    flexShrink: 0,
+    alignSelf: 'flex-start',
+    marginTop: '0.2rem',
+  },
+  privacyBadge: {
+    fontSize: '0.72rem', fontWeight: 600,
+    padding: '0.2rem 0.55rem', borderRadius: 'var(--radius-sm)',
+    color: 'var(--text-muted)', background: 'rgba(255,255,255,0.05)',
+    border: '1px solid var(--border-subtle)',
+  },
 };
 
 export default TripCard;

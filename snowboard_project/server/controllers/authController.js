@@ -1,87 +1,59 @@
-const users = require("../models/users");
-const { VALID_SKILL_LEVELS } = require("../models/skillLevels");
+'use strict';
+const { User } = require('../db');
+const { VALID_SKILL_LEVELS } = require('../models/skillLevels');
 
-const VALID_SPORT_TYPES  = ["ski", "snowboard"];
-const VALID_ROLES        = ["admin", "manager", "user"];
+const VALID_SPORT_TYPES = ['ski', 'snowboard'];
 
-// ─── POST /auth/register ───────────────────────────────────────────────────────
-const register = (req, res, next) => {
+// POST /auth/register
+const register = async (req, res, next) => {
   try {
     const { firstName, lastName, email, password, sportType, skillLevel } = req.body;
 
-    // Validate all required fields are present
-    const requiredFields = ["firstName", "lastName", "email", "password", "sportType", "skillLevel"];
+    const requiredFields = ['firstName', 'lastName', 'email', 'password', 'sportType', 'skillLevel'];
     for (const field of requiredFields) {
-      if (req.body[field] === undefined || req.body[field] === null || req.body[field] === "") {
+      if (req.body[field] === undefined || req.body[field] === null || req.body[field] === '') {
         return res.status(400).json({
-          success: false,
-          data: null,
-          error: { code: "VALIDATION_ERROR", message: `${field} is required.`, details: { field } }
+          success: false, data: null,
+          error: { code: 'VALIDATION_ERROR', message: `${field} is required.`, details: { field } }
         });
       }
     }
 
-    // Validate sportType
     if (!VALID_SPORT_TYPES.includes(sportType)) {
       return res.status(400).json({
-        success: false,
-        data: null,
-        error: {
-          code: "VALIDATION_ERROR",
-          message: `sportType must be one of: ${VALID_SPORT_TYPES.join(", ")}.`,
-          details: { field: "sportType" }
-        }
+        success: false, data: null,
+        error: { code: 'VALIDATION_ERROR', message: `sportType must be one of: ${VALID_SPORT_TYPES.join(', ')}.`, details: { field: 'sportType' } }
       });
     }
 
-    // Validate skillLevel — must be an integer between 1 and 5
     const skillLevelInt = parseInt(skillLevel);
     if (!Number.isInteger(skillLevelInt) || !VALID_SKILL_LEVELS.includes(skillLevelInt)) {
       return res.status(400).json({
-        success: false,
-        data: null,
-        error: {
-          code: "VALIDATION_ERROR",
-          message: `skillLevel must be an integer between 1 and 5. (1=First-Timer, 2=Novice, 3=Intermediate, 4=Expert, 5=Pro/Freeride)`,
-          details: { field: "skillLevel" }
-        }
+        success: false, data: null,
+        error: { code: 'VALIDATION_ERROR', message: 'skillLevel must be an integer between 1 and 5. (1=First-Timer, 2=Novice, 3=Intermediate, 4=Expert, 5=Pro/Freeride)', details: { field: 'skillLevel' } }
       });
     }
 
-    // Check for duplicate email
-    const existing = users.find((u) => u.email && u.email.toLowerCase() === email.toLowerCase());
+    const existing = await User.findOne({ where: { email: email.toLowerCase() } });
     if (existing) {
       return res.status(400).json({
-        success: false,
-        data: null,
-        error: { code: "VALIDATION_ERROR", message: "A user with this email already exists.", details: { field: "email" } }
+        success: false, data: null,
+        error: { code: 'VALIDATION_ERROR', message: 'A user with this email already exists.', details: { field: 'email' } }
       });
     }
 
-    const now   = new Date().toISOString();
-    const newId = Math.max(...users.map((u) => u.userId), 0) + 1;
-
-    const newUser = {
-      userId:     newId,
-      firstName,
-      lastName,
-      email,
-      password,        // plain-text for mock only — not for production use
+    const user = await User.create({
+      firstName, lastName,
+      email: email.toLowerCase(),
+      password,
       sportType,
       skillLevel: skillLevelInt,
-      createDate: now,
-      updateDate: now,
-      userRole:   "user"   // default role for self-registration
-    };
-
-    users.push(newUser);
-
-    // Never return the password in the response
-    const { password: _omit, ...safeUser } = newUser;
+      userRole: 'user'
+    });
 
     return res.status(201).json({
       success: true,
-      data: { message: "Registration successful.", user: safeUser },
+      data: { message: 'Registration successful.', user: fmtUser(user) },
       error: null
     });
   } catch (err) {
@@ -89,49 +61,54 @@ const register = (req, res, next) => {
   }
 };
 
-// ─── POST /auth/login ──────────────────────────────────────────────────────────
-const login = (req, res, next) => {
+// POST /auth/login
+const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
     if (!email) {
       return res.status(400).json({
-        success: false,
-        data: null,
-        error: { code: "VALIDATION_ERROR", message: "email is required.", details: { field: "email" } }
+        success: false, data: null,
+        error: { code: 'VALIDATION_ERROR', message: 'email is required.', details: { field: 'email' } }
       });
     }
     if (!password) {
       return res.status(400).json({
-        success: false,
-        data: null,
-        error: { code: "VALIDATION_ERROR", message: "password is required.", details: { field: "password" } }
+        success: false, data: null,
+        error: { code: 'VALIDATION_ERROR', message: 'password is required.', details: { field: 'password' } }
       });
     }
 
-    const user = users.find(
-      (u) => u.email && u.email.toLowerCase() === email.toLowerCase() && u.password === password
-    );
-
-    if (!user) {
+    const user = await User.findOne({ where: { email: email.toLowerCase() } });
+    if (!user || user.password !== password) {
       return res.status(400).json({
-        success: false,
-        data: null,
-        error: { code: "VALIDATION_ERROR", message: "Invalid email or password.", details: {} }
+        success: false, data: null,
+        error: { code: 'VALIDATION_ERROR', message: 'Invalid email or password.', details: {} }
       });
     }
-
-    // Never return the password
-    const { password: _omit, ...safeUser } = user;
 
     return res.status(200).json({
       success: true,
-      data: { message: "Login successful.", user: safeUser },
+      data: { message: 'Login successful.', user: fmtUser(user) },
       error: null
     });
   } catch (err) {
     next(err);
   }
 };
+
+function fmtUser(u) {
+  return {
+    userId:     u.id,
+    firstName:  u.firstName,
+    lastName:   u.lastName,
+    email:      u.email,
+    sportType:  u.sportType,
+    skillLevel: u.skillLevel,
+    userRole:   u.userRole,
+    createDate: u.createdAt,
+    updateDate: u.updatedAt
+  };
+}
 
 module.exports = { register, login };

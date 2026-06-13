@@ -1,0 +1,626 @@
+{
+  "info": {
+    "name": "SnowTrip Planner API",
+    "description": "Full API collection for the SnowTrip Planner BGU assignment.\n\nBase URL: http://localhost:3000\n\nAuth headers required on most routes:\n  x-user-role: admin | manager | user\n  x-user-id: <integer>\n\nAll responses follow: { success, data, error }",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "adminId", "value": "1" },
+    { "key": "managerId", "value": "2" },
+    { "key": "userId", "value": "3" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Jane\",\n  \"lastName\": \"Doe\",\n  \"email\": \"jane@example.com\",\n  \"password\": \"secret123\",\n  \"sportType\": \"snowboard\",\n  \"skillLevel\": 3\n}"
+            }
+          }
+        },
+        {
+          "name": "Login (admin)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"roii@example.com\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login (manager)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"chacha@example.com\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login (user)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"lebron@example.com\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/users",
+            "header": [
+              { "key": "x-user-role", "value": "admin" },
+              { "key": "x-user-id", "value": "{{adminId}}" }
+            ]
+          }
+        },
+        {
+          "name": "Search Users",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/users/search?q=roii",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "{{userId}}" }
+            ]
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/users/1",
+            "header": [
+              { "key": "x-user-role", "value": "admin" },
+              { "key": "x-user-id", "value": "{{adminId}}" }
+            ]
+          }
+        },
+        {
+          "name": "Get User Trips",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/users/1/trips",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "1" }
+            ]
+          }
+        },
+        {
+          "name": "Get User Friends",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/users/1/friends",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "1" }
+            ]
+          }
+        },
+        {
+          "name": "Get Received Friend Requests",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/users/1/friend-requests/received",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "1" }
+            ]
+          }
+        },
+        {
+          "name": "Get Sent Friend Requests",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/users/1/friend-requests/sent",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "1" }
+            ]
+          }
+        },
+        {
+          "name": "Get Joined Trips",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/users/3/joined-trips",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "{{userId}}" }
+            ]
+          }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/users",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-role", "value": "admin" },
+              { "key": "x-user-id", "value": "{{adminId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\",\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\",\n  \"sportType\": \"ski\",\n  \"skillLevel\": 2,\n  \"userRole\": \"user\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/users/3",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-role", "value": "admin" },
+              { "key": "x-user-id", "value": "{{adminId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"LeBron\",\n  \"lastName\": \"James\",\n  \"userRole\": \"user\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/users/6",
+            "header": [
+              { "key": "x-user-role", "value": "admin" },
+              { "key": "x-user-id", "value": "{{adminId}}" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Resorts",
+      "item": [
+        {
+          "name": "Get All Resorts",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/resorts"
+          }
+        },
+        {
+          "name": "Get Resorts by Country",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/resorts?country=Switzerland"
+          }
+        },
+        {
+          "name": "Get Resorts by Difficulty",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/resorts?difficultyLevel=3"
+          }
+        },
+        {
+          "name": "Get Resort by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/resorts/1"
+          }
+        },
+        {
+          "name": "Get Resort Locations",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/resorts/1/locations"
+          }
+        },
+        {
+          "name": "Get Resort Locations by Type",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/resorts/1/locations?type=lift"
+          }
+        },
+        {
+          "name": "Get Weather Forecast (7-day)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/resorts/1/forecast"
+          }
+        },
+        {
+          "name": "Get Weather Forecast (trip dates)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/resorts/1/forecast?startDate=2026-12-20&endDate=2026-12-27"
+          }
+        },
+        {
+          "name": "Create Resort",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/resorts",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-role", "value": "manager" },
+              { "key": "x-user-id", "value": "{{managerId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Cervinia\",\n  \"country\": \"Italy\",\n  \"elevation\": 3480,\n  \"terrainType\": \"mixed\",\n  \"difficultyLevel\": 3,\n  \"snowboardFriendly\": true,\n  \"latitude\": 45.9269,\n  \"longitude\": 7.6319\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Resort",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/resorts/1",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-role", "value": "manager" },
+              { "key": "x-user-id", "value": "{{managerId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Zermatt\",\n  \"country\": \"Switzerland\",\n  \"elevation\": 3883,\n  \"terrainType\": \"mixed\",\n  \"difficultyLevel\": 4,\n  \"snowboardFriendly\": true,\n  \"latitude\": 46.0207,\n  \"longitude\": 7.7491\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Resort",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/resorts/6",
+            "header": [
+              { "key": "x-user-role", "value": "admin" },
+              { "key": "x-user-id", "value": "{{adminId}}" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Trips",
+      "item": [
+        {
+          "name": "Get All Trips (admin)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/trips",
+            "header": [
+              { "key": "x-user-role", "value": "admin" },
+              { "key": "x-user-id", "value": "{{adminId}}" }
+            ]
+          }
+        },
+        {
+          "name": "Discover Trips",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/trips/discover",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "{{userId}}" }
+            ]
+          }
+        },
+        {
+          "name": "Discover Trips (filtered)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/trips/discover?sportType=snowboard&skillLevel=3",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "{{userId}}" }
+            ]
+          }
+        },
+        {
+          "name": "Get Trip by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/trips/1",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "{{userId}}" }
+            ]
+          }
+        },
+        {
+          "name": "Get Trip Members",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/trips/1/members",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "{{userId}}" }
+            ]
+          }
+        },
+        {
+          "name": "Create Trip",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/trips",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "{{userId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 3,\n  \"resortId\": 1,\n  \"startDate\": \"2026-12-20\",\n  \"endDate\": \"2026-12-27\",\n  \"skillLevel\": 3,\n  \"sportType\": \"snowboard\",\n  \"privacy\": \"public\",\n  \"maxMembers\": 8\n}"
+            }
+          }
+        },
+        {
+          "name": "Join Trip",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/trips/1/join",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "{{userId}}" }
+            ]
+          }
+        },
+        {
+          "name": "Delete Trip (own)",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/trips/1",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "1" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Trip Members",
+      "item": [
+        {
+          "name": "Approve Member",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/trip-members/1/approve",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "1" }
+            ]
+          }
+        },
+        {
+          "name": "Reject Member",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/trip-members/1/reject",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "1" }
+            ]
+          }
+        },
+        {
+          "name": "Remove Member (creator) or Leave Trip (self)",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/trip-members/1",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "{{userId}}" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Resort Locations",
+      "item": [
+        {
+          "name": "Get All Locations",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/resort-locations",
+            "header": [
+              { "key": "x-user-role", "value": "admin" },
+              { "key": "x-user-id", "value": "{{adminId}}" }
+            ]
+          }
+        },
+        {
+          "name": "Create Location",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/resort-locations",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-role", "value": "manager" },
+              { "key": "x-user-id", "value": "{{managerId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resortId\": 1,\n  \"name\": \"Klein Matterhorn Cable Car\",\n  \"type\": \"lift\",\n  \"description\": \"Highest cable car in the Alps, access to 3883m peak\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Location",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/resort-locations/1",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-role", "value": "manager" },
+              { "key": "x-user-id", "value": "{{managerId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resortId\": 1,\n  \"name\": \"Klein Matterhorn Cable Car\",\n  \"type\": \"lift\",\n  \"description\": \"Updated description\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Location",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/resort-locations/1",
+            "header": [
+              { "key": "x-user-role", "value": "admin" },
+              { "key": "x-user-id", "value": "{{adminId}}" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Social — Friends",
+      "item": [
+        {
+          "name": "Send Friend Request",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/friend-requests",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "1" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"receiverId\": 4\n}"
+            }
+          }
+        },
+        {
+          "name": "Accept Friend Request",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/friend-requests/1/accept",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "4" }
+            ]
+          }
+        },
+        {
+          "name": "Reject Friend Request",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/friend-requests/1/reject",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "4" }
+            ]
+          }
+        },
+        {
+          "name": "Remove Friend",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/friendships/1",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "1" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI Features",
+      "item": [
+        {
+          "name": "Resort Summary (LLM)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/resort-summary",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "{{userId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resortId\": 1,\n  \"skillLevel\": 3\n}"
+            }
+          }
+        },
+        {
+          "name": "Recommend Resorts (LLM)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/recommend-resorts",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "{{userId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"startDate\": \"2026-12-20\",\n  \"endDate\": \"2026-12-27\",\n  \"skillLevel\": 3,\n  \"sportType\": \"snowboard\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Gear Recommendation (LLM)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/gear-recommendation",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "{{userId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resortId\": 1,\n  \"skillLevel\": 3,\n  \"sportType\": \"snowboard\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Resort Assistant (LLM)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/resort-assistant",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "{{userId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resortId\": 1,\n  \"locationType\": \"slope\",\n  \"sportType\": \"snowboard\"\n}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

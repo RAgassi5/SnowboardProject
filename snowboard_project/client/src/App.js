@@ -11,6 +11,8 @@ import TripDetailsPage from './pages/TripDetailsPage';
 import ResortsPage     from './pages/ResortsPage';
 import SettingsPage    from './pages/SettingsPage';
 import ManagementPage  from './pages/ManagementPage';
+import FriendsPage         from './pages/FriendsPage';
+import DiscoverTripsPage   from './pages/DiscoverTripsPage';
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 import Layout         from './components/Layout';
@@ -38,6 +40,8 @@ function App() {
           <Route path="/trips/:tripId"    element={<TripDetailsPage />} />
           <Route path="/resorts"          element={<ResortsPage />} />
           <Route path="/settings"         element={<SettingsPage />} />
+          <Route path="/friends"          element={<FriendsPage />} />
+          <Route path="/discover"         element={<DiscoverTripsPage />} />
           <Route path="/management"       element={<ManagementPage />} />
         </Route>
 

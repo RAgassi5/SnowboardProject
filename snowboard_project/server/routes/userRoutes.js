@@ -8,13 +8,43 @@ const {
   updateUser,
   deleteUser
 } = require("../controllers/userController");
-const { getTripsByUserId } = require("../controllers/tripController");
+const { getTripsByUserId, getUnreadCounts } = require("../controllers/tripController");
+const {
+  searchUsers,
+  getReceivedRequests,
+  getSentRequests,
+  getFriends
+} = require("../controllers/friendController");
+const { getJoinedTrips, getUserInvitations } = require("../controllers/tripMemberController");
+
+const ANY = ["user", "manager", "admin"];
 
 // GET /users             → admin, manager only
 router.get("/", auth(["admin", "manager"]), getAllUsers);
 
-// GET /users/:id/trips   → all roles (user can view their own trip history)
+// GET /users/search?q=  → any authenticated user (must be before /:id)
+router.get("/search", auth(ANY), searchUsers);
+
+// GET /users/:id/trips   → all roles
 router.get("/:id/trips", getTripsByUserId);
+
+// GET /users/:id/friend-requests/received  → any authenticated user
+router.get("/:id/friend-requests/received", auth(ANY), getReceivedRequests);
+
+// GET /users/:id/friend-requests/sent  → any authenticated user
+router.get("/:id/friend-requests/sent", auth(ANY), getSentRequests);
+
+// GET /users/:id/friends  → any authenticated user
+router.get("/:id/friends", auth(ANY), getFriends);
+
+// GET /users/:id/joined-trips → any authenticated user
+router.get("/:id/joined-trips", auth(ANY), getJoinedTrips);
+
+// GET /users/:id/invitations  → any authenticated user
+router.get("/:id/invitations", auth(ANY), getUserInvitations);
+
+// GET /users/:id/unread-counts → any authenticated user
+router.get("/:id/unread-counts", auth(ANY), getUnreadCounts);
 
 // GET /users/:id         → admin, manager only
 router.get("/:id", auth(["admin", "manager"]), getUserById);

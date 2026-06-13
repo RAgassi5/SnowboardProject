@@ -8,7 +8,9 @@ const getNavLinks = (userRole) => {
     { to: '/dashboard', label: 'Dashboard',  icon: '🏠' },
     { to: '/plan-trip', label: 'Plan Trip',  icon: '🎯' },
     { to: '/trips',     label: 'My Trips',   icon: '📋' },
+    { to: '/discover',  label: 'Discover',   icon: '🔍'  },
     { to: '/resorts',   label: 'Resorts',    icon: '⛷️'  },
+    { to: '/friends',   label: 'Friends',    icon: '👥'  },
     { to: '/settings',  label: 'Settings',   icon: '⚙️'  },
   ];
   if (userRole === 'admin' || userRole === 'manager') {

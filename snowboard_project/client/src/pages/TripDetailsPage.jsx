@@ -4,9 +4,12 @@ import {
   getTripById, getResortById, getResortForecast,
   getResortLocations, getResortAssistant, getResortSummary,
   getStoredUser, getStoredRole, deleteTrip,
+  getTripMembers, approveTripMember, rejectTripMember, removeTripMember,
+  getFriends, inviteFriendToTrip,
 } from '../services/api';
 import ConfirmDialog from '../components/ConfirmDialog';
 import GearAdvisorModal from '../components/GearAdvisorModal';
+import ChatRoom from '../components/ChatRoom';
 import DataTable from '../components/DataTable';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
@@ -73,6 +76,14 @@ function TripDetailsPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting,          setDeleting]          = useState(false);
 
+  // Members
+  const [members,           setMembers]           = useState([]);
+  const [memberAction,      setMemberAction]      = useState({});
+
+  // Invite friends
+  const [friends,           setFriends]           = useState([]);
+  const [inviting,          setInviting]          = useState({});
+
   // Resort assistant
   const [assistantType,     setAssistantType]     = useState('');
   const [assistantResult,   setAssistantResult]   = useState(null);
@@ -91,10 +102,12 @@ function TripDetailsPage() {
         const tripData = await getTripById(tripId);
         if (!tripData) throw new Error('Trip not found.');
 
-        const [resortData, forecastData, locData] = await Promise.all([
+        const [resortData, forecastData, locData, membersData, friendsData] = await Promise.all([
           getResortById(tripData.resortId),
           getResortForecast(tripData.resortId, tripData.startDate, tripData.endDate),
           getResortLocations(tripData.resortId),
+          getTripMembers(tripId),
+          user?.userId ? getFriends(user.userId) : Promise.resolve([]),
         ]);
 
         // Resort summary uses user's skill level
@@ -112,6 +125,8 @@ function TripDetailsPage() {
           setForecast(forecastData);
           setLocations(locData ?? []);
           setSummary(summaryData);
+          setMembers(membersData ?? []);
+          setFriends(friendsData ?? []);
         }
       } catch (err) {
         if (!cancelled) setError(err.message);
@@ -134,6 +149,20 @@ function TripDetailsPage() {
     } catch (err) {
       setError(err.message);
       setDeleting(false);
+    }
+  };
+
+  // ── Invite friend ─────────────────────────────────────────────────────────────
+  const handleInvite = async (friendUserId) => {
+    setInviting(s => ({ ...s, [friendUserId]: true }));
+    try {
+      await inviteFriendToTrip(tripId, friendUserId);
+      const updated = await getTripMembers(tripId);
+      setMembers(updated ?? []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setInviting(s => ({ ...s, [friendUserId]: false }));
     }
   };
 
@@ -178,6 +207,10 @@ function TripDetailsPage() {
 
   if (!trip || !resort) return null;
 
+  const isCreator        = trip.userId === user?.userId;
+  const isApprovedMember = members.some(m => m.userId === user?.userId && m.status === 'approved');
+  const hasFullAccess    = isCreator || isApprovedMember;
+
   const dColor    = DIFFICULTY_COLORS[resort.difficultyLevel] ?? '#4f8ef7';
   const dLabel    = DIFFICULTY_LABELS[resort.difficultyLevel] ?? '';
   const nights    = Math.round((new Date(trip.endDate) - new Date(trip.startDate)) / 86400000);
@@ -192,15 +225,17 @@ function TripDetailsPage() {
           id="back-to-trips" style={{ fontSize: '0.85rem' }}>
           ← Back to My Trips
         </button>
-        <button
-          id="delete-trip-btn"
-          className="btn btn-danger"
-          onClick={() => setShowDeleteConfirm(true)}
-          disabled={deleting}
-          style={{ fontSize: '0.85rem', marginLeft: 'auto' }}
-        >
-          {deleting ? '…' : '🗑 Delete Trip'}
-        </button>
+        {(isCreator || role === 'admin') && (
+          <button
+            id="delete-trip-btn"
+            className="btn btn-danger"
+            onClick={() => setShowDeleteConfirm(true)}
+            disabled={deleting}
+            style={{ fontSize: '0.85rem', marginLeft: 'auto' }}
+          >
+            {deleting ? '…' : '🗑 Delete Trip'}
+          </button>
+        )}
       </div>
 
       {/* ── SECTION 1: Trip Overview ─────────────────────────────────────── */}
@@ -237,17 +272,217 @@ function TripDetailsPage() {
           </div>
         </div>
 
-        {/* Snowboard friendly status */}
+        {/* Snowboard friendly status + privacy/capacity */}
         <div style={styles.boardRow}>
           <span style={resort.snowboardFriendly ? styles.boardYes : styles.boardWarn}>
             {resort.snowboardFriendly
               ? '🏂 Snowboard Friendly — minimal flat cat-tracks'
               : '⚠️ Cat-track warning — challenging for snowboarders between sectors'}
           </span>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+            {trip.privacy && (
+              <span style={styles.infoPill}>
+                {{ public: '🌍', 'friends-only': '👥', private: '🔒' }[trip.privacy]} {' '}
+                {{ public: 'Public', 'friends-only': 'Friends Only', private: 'Private' }[trip.privacy]}
+              </span>
+            )}
+            {trip.maxMembers != null && (
+              <span style={styles.infoPill}>
+                👥 Max {trip.maxMembers} members
+              </span>
+            )}
+          </div>
         </div>
       </section>
 
-      {/* ── SECTION 2: Weather Conditions ────────────────────────────────── */}
+      {/* ── SECTION 2: Trip Members ──────────────────────────────────────── */}
+      {(() => {
+        const pending     = members.filter(m => m.status === 'pending');
+        const approved    = members.filter(m => m.status === 'approved');
+
+        const handleMemberAction = async (memberId, action) => {
+          setMemberAction(a => ({ ...a, [memberId]: true }));
+          try {
+            if (action === 'approve') await approveTripMember(memberId);
+            else if (action === 'reject') await rejectTripMember(memberId);
+            else if (action === 'remove' || action === 'leave') await removeTripMember(memberId);
+            const updated = await getTripMembers(tripId);
+            setMembers(updated ?? []);
+          } catch (err) {
+            setError(err.message);
+          } finally {
+            setMemberAction(a => ({ ...a, [memberId]: false }));
+          }
+        };
+
+        // My own membership (for non-creators)
+        const myMembership = !isCreator
+          ? members.find(m => m.userId === user?.userId)
+          : null;
+
+        if (!isCreator && approved.length === 0 && !myMembership) return null;
+        if (isCreator && pending.length === 0 && approved.length === 0) return null;
+
+        return (
+          <section className="card" style={{ marginBottom: '2rem' }} aria-label="Trip members">
+            <h2 style={styles.sectionTitle}>
+              👥 Trip Members
+              {trip.maxMembers != null && (
+                <span style={styles.membersCapacity}>
+                  {' '}— {approved.length}/{trip.maxMembers} spots filled
+                </span>
+              )}
+            </h2>
+
+            {/* Pending requests — only creator sees these */}
+            {isCreator && pending.length > 0 && (
+              <div style={{ marginBottom: '1.25rem' }}>
+                <div style={styles.memberSubtitle}>Pending Requests ({pending.length})</div>
+                <div style={styles.memberList}>
+                  {pending.map(m => (
+                    <div key={m.memberId} style={styles.memberRow}>
+                      <div style={styles.memberAvatar}>{m.user.firstName[0]}</div>
+                      <div style={styles.memberInfo}>
+                        <div style={styles.memberName}>{m.user.firstName} {m.user.lastName}</div>
+                        <div style={styles.memberMeta}>{m.user.sportType} · Level {m.user.skillLevel}</div>
+                      </div>
+                      <div style={styles.memberActions}>
+                        {m.isInvitation ? (
+                          <span style={styles.approvedBadge}>Invitation Sent</span>
+                        ) : (
+                          <>
+                            <button
+                              style={styles.approveBtn}
+                              disabled={memberAction[m.memberId]}
+                              onClick={() => handleMemberAction(m.memberId, 'approve')}
+                            >Approve</button>
+                            <button
+                              style={styles.rejectBtn}
+                              disabled={memberAction[m.memberId]}
+                              onClick={() => handleMemberAction(m.memberId, 'reject')}
+                            >Reject</button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Approved members */}
+            {approved.length > 0 && (
+              <div>
+                <div style={styles.memberSubtitle}>Members ({approved.length})</div>
+                <div style={styles.memberList}>
+                  {approved.map(m => (
+                    <div key={m.memberId} style={styles.memberRow}>
+                      <div style={{ ...styles.memberAvatar, background: 'rgba(52,211,153,0.2)', color: '#34d399' }}>
+                        {m.user.firstName[0]}
+                      </div>
+                      <div style={styles.memberInfo}>
+                        <div style={styles.memberName}>{m.user.firstName} {m.user.lastName}</div>
+                        <div style={styles.memberMeta}>{m.user.sportType} · Level {m.user.skillLevel}</div>
+                      </div>
+                      <div style={styles.memberActions}>
+                        {isCreator ? (
+                          <button
+                            style={styles.rejectBtn}
+                            disabled={memberAction[m.memberId]}
+                            onClick={() => handleMemberAction(m.memberId, 'remove')}
+                          >Remove</button>
+                        ) : m.userId === user?.userId ? (
+                          <button
+                            style={styles.rejectBtn}
+                            disabled={memberAction[m.memberId]}
+                            onClick={() => handleMemberAction(m.memberId, 'leave')}
+                          >Leave Trip</button>
+                        ) : (
+                          <span style={styles.approvedBadge}>Approved</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Pending status for non-creator: invitation or join request */}
+            {myMembership && myMembership.status === 'pending' && (
+              myMembership.isInvitation ? (
+                <div style={{ ...styles.invitationBanner, marginTop: (approved.length > 0 || (isCreator && pending.length > 0)) ? '1rem' : 0 }}>
+                  <p style={{ margin: 0, fontWeight: 600, color: 'var(--text-primary)' }}>
+                    🎉 You've been invited to this trip!
+                  </p>
+                  <div style={styles.memberActions}>
+                    <button
+                      style={styles.approveBtn}
+                      disabled={memberAction[myMembership.memberId]}
+                      onClick={() => handleMemberAction(myMembership.memberId, 'approve')}
+                    >Accept</button>
+                    <button
+                      style={styles.rejectBtn}
+                      disabled={memberAction[myMembership.memberId]}
+                      onClick={() => handleMemberAction(myMembership.memberId, 'leave')}
+                    >Decline</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ marginTop: approved.length > 0 ? '1rem' : 0, borderTop: approved.length > 0 ? '1px solid var(--border-subtle)' : 'none', paddingTop: approved.length > 0 ? '0.75rem' : 0 }}>
+                  <div style={styles.memberSubtitle}>Your Request</div>
+                  <div style={styles.memberRow}>
+                    <div style={styles.memberAvatar}>{user.firstName[0]}</div>
+                    <div style={styles.memberInfo}>
+                      <div style={styles.memberName}>You (pending approval)</div>
+                    </div>
+                    <div style={styles.memberActions}>
+                      <button
+                        style={styles.rejectBtn}
+                        disabled={memberAction[myMembership.memberId]}
+                        onClick={() => handleMemberAction(myMembership.memberId, 'leave')}
+                      >Cancel Request</button>
+                    </div>
+                  </div>
+                </div>
+              )
+            )}
+
+          </section>
+        );
+      })()}
+
+      {/* ── SECTION: Invite Friends (creator of friends-only trip) ─────────── */}
+      {isCreator && trip.privacy === 'friends-only' && (() => {
+        const memberUserIds = new Set(members.map(m => m.userId));
+        const invitable = friends.filter(f => !memberUserIds.has(f.userId));
+        if (invitable.length === 0) return null;
+        return (
+          <section className="card" style={{ marginBottom: '2rem' }} aria-label="Invite friends">
+            <h2 style={styles.sectionTitle}>📨 Invite Friends</h2>
+            <p style={styles.sectionSub}>Invite your friends to this trip</p>
+            <div style={styles.memberList}>
+              {invitable.map(f => (
+                <div key={f.userId} style={styles.memberRow}>
+                  <div style={styles.memberAvatar}>{f.firstName[0]}</div>
+                  <div style={styles.memberInfo}>
+                    <div style={styles.memberName}>{f.firstName} {f.lastName}</div>
+                    <div style={styles.memberMeta}>{f.sportType} · Level {f.skillLevel}</div>
+                  </div>
+                  <button
+                    style={styles.approveBtn}
+                    disabled={inviting[f.userId]}
+                    onClick={() => handleInvite(f.userId)}
+                  >
+                    {inviting[f.userId] ? '…' : 'Invite'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      })()}
+
+      {/* ── SECTION 3: Weather Conditions ────────────────────────────────── */}
       {forecast?.days?.length > 0 && (
         <section aria-label="Weather forecast" style={{ marginBottom: '2rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
@@ -386,6 +621,19 @@ function TripDetailsPage() {
         )}
       </section>
 
+      {/* ── SECTION 7: Group Chat ────────────────────────────────────────── */}
+      <section className="card" style={{ marginBottom: '2rem' }} aria-label="Group chat">
+        <h2 style={styles.sectionTitle}>💬 Group Chat</h2>
+        {hasFullAccess ? (
+          <>
+            <p style={styles.sectionSub}>Live chat for everyone on this trip</p>
+            <ChatRoom tripId={parseInt(tripId)} />
+          </>
+        ) : (
+          <p style={styles.sectionSub}>Join this trip to access the group chat.</p>
+        )}
+      </section>
+
       {/* ── Gear Advisor floating button + modal ────────────────────────── */}
       <GearAdvisorModal resortId={resort.resortId} resortName={resort.name} />
 
@@ -446,6 +694,11 @@ const styles = {
   boardRow: { borderTop: '1px solid var(--border-subtle)', paddingTop: '0.85rem' },
   boardYes: {
     fontSize: '0.82rem', color: '#5eead4', fontWeight: 600,
+  },
+  infoPill: {
+    fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)',
+    background: 'rgba(255,255,255,0.05)', padding: '0.2rem 0.65rem',
+    borderRadius: 'var(--radius-full)', border: '1px solid var(--border-subtle)',
   },
   boardWarn: {
     fontSize: '0.82rem', color: '#fcd34d', fontWeight: 600,
@@ -520,6 +773,60 @@ const styles = {
   spotItem: {
     fontSize: '0.85rem', color: 'var(--text-secondary)',
     lineHeight: 1.5, marginBottom: '0.25rem',
+  },
+
+  // Members section
+  membersCapacity: {
+    fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-muted)',
+  },
+  memberSubtitle: {
+    fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)',
+    textTransform: 'uppercase', letterSpacing: '0.07em',
+    marginBottom: '0.6rem',
+  },
+  memberList: {
+    display: 'flex', flexDirection: 'column', gap: '0.5rem',
+  },
+  memberRow: {
+    display: 'flex', alignItems: 'center', gap: '0.75rem',
+    padding: '0.6rem 0.85rem',
+    background: 'rgba(255,255,255,0.03)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 'var(--radius-md)',
+  },
+  memberAvatar: {
+    width: 34, height: 34, borderRadius: '50%',
+    background: 'rgba(79,142,247,0.15)', color: 'var(--accent-light)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: '0.85rem', fontWeight: 700, flexShrink: 0,
+  },
+  memberInfo: { display: 'flex', flexDirection: 'column', gap: '0.1rem' },
+  memberName: { fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' },
+  memberMeta: { fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'capitalize' },
+  memberActions: {
+    marginLeft: 'auto', display: 'flex', gap: '0.4rem', flexShrink: 0,
+  },
+  approveBtn: {
+    padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-md)',
+    background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.25)',
+    color: '#6ee7b7', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+  },
+  rejectBtn: {
+    padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-md)',
+    background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
+    color: '#fca5a5', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+  },
+  approvedBadge: {
+    marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 700,
+    color: '#34d399', background: 'rgba(52,211,153,0.1)',
+    padding: '0.2rem 0.6rem', borderRadius: 'var(--radius-sm)',
+    flexShrink: 0,
+  },
+  invitationBanner: {
+    padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)',
+    background: 'rgba(79,142,247,0.08)', border: '1px solid rgba(79,142,247,0.2)',
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem',
   },
 };
 

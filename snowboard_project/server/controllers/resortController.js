@@ -1,142 +1,111 @@
-const resorts = require("../models/resorts");
+'use strict';
+const { Resort } = require('../db');
 
 // GET /resorts  (supports ?country= and ?difficultyLevel= filters)
-const getAllResorts = (req, res, next) => {
+const getAllResorts = async (req, res, next) => {
   try {
-    let result = [...resorts];
+    let results = await Resort.findAll();
 
     const { country, difficultyLevel } = req.query;
 
     if (country) {
-      result = result.filter(
-        (r) => r.country.toLowerCase() === country.toLowerCase()
-      );
+      results = results.filter(r => r.country.toLowerCase() === country.toLowerCase());
     }
 
     if (difficultyLevel) {
-      result = result.filter(
-        (r) => r.difficultyLevel === parseInt(difficultyLevel)
-      );
+      results = results.filter(r => r.difficultyLevel === parseInt(difficultyLevel));
     }
 
-    return res.status(200).json({ success: true, data: result, error: null });
+    return res.status(200).json({ success: true, data: results.map(fmtResort), error: null });
   } catch (err) {
     next(err);
   }
 };
 
 // GET /resorts/:id
-const getResortById = (req, res, next) => {
+const getResortById = async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
-    const resort = resorts.find((r) => r.resortId === id);
+    const resort = await Resort.findByPk(id);
 
     if (!resort) {
       return res.status(404).json({
-        success: false,
-        data: null,
-        error: {
-          code: "NOT_FOUND",
-          message: `Resort with id ${id} not found.`,
-          details: {}
-        }
+        success: false, data: null,
+        error: { code: 'NOT_FOUND', message: `Resort with id ${id} not found.`, details: {} }
       });
     }
 
-    return res.status(200).json({ success: true, data: resort, error: null });
+    return res.status(200).json({ success: true, data: fmtResort(resort), error: null });
   } catch (err) {
     next(err);
   }
 };
 
 // POST /resorts
-const createResort = (req, res, next) => {
+const createResort = async (req, res, next) => {
   try {
-    const { name, country, elevation, terrainType, difficultyLevel, latitude, longitude } = req.body;
+    const { name, country, elevation, terrainType, difficultyLevel, snowboardFriendly, latitude, longitude } = req.body;
 
-    // Validate required fields
-    const requiredFields = ["name", "country", "difficultyLevel"];
+    const requiredFields = ['name', 'country', 'difficultyLevel'];
     for (const field of requiredFields) {
       if (!req.body[field]) {
         return res.status(400).json({
-          success: false,
-          data: null,
-          error: {
-            code: "VALIDATION_ERROR",
-            message: `${field} is required.`,
-            details: { field }
-          }
+          success: false, data: null,
+          error: { code: 'VALIDATION_ERROR', message: `${field} is required.`, details: { field } }
         });
       }
     }
 
-    const newId = Math.max(...resorts.map((r) => r.resortId), 0) + 1;
+    const resort = await Resort.create({
+      name, country,
+      elevation:        elevation        != null ? elevation        : null,
+      terrainType:      terrainType      != null ? terrainType      : null,
+      difficultyLevel:  parseInt(difficultyLevel),
+      snowboardFriendly: snowboardFriendly != null ? Boolean(snowboardFriendly) : true,
+      latitude:         latitude         != null ? parseFloat(latitude)  : null,
+      longitude:        longitude        != null ? parseFloat(longitude) : null
+    });
 
-    const newResort = {
-      resortId: newId,
-      name,
-      country,
-      elevation: elevation || null,
-      terrainType: terrainType || null,
-      difficultyLevel,
-      latitude: latitude || null,
-      longitude: longitude || null
-    };
-
-    resorts.push(newResort);
-
-    return res.status(201).json({ success: true, data: { resortId: newId }, error: null });
+    return res.status(201).json({ success: true, data: { resortId: resort.id }, error: null });
   } catch (err) {
     next(err);
   }
 };
 
 // PUT /resorts/:id
-const updateResort = (req, res, next) => {
+const updateResort = async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
-    const resortIndex = resorts.findIndex((r) => r.resortId === id);
+    const resort = await Resort.findByPk(id);
 
-    if (resortIndex === -1) {
+    if (!resort) {
       return res.status(404).json({
-        success: false,
-        data: null,
-        error: {
-          code: "NOT_FOUND",
-          message: `Resort with id ${id} not found.`,
-          details: {}
-        }
+        success: false, data: null,
+        error: { code: 'NOT_FOUND', message: `Resort with id ${id} not found.`, details: {} }
       });
     }
 
-    const { name, country, elevation, terrainType, difficultyLevel, latitude, longitude } = req.body;
+    const { name, country, elevation, terrainType, difficultyLevel, snowboardFriendly, latitude, longitude } = req.body;
 
-    // Validate required fields
-    const requiredFields = ["name", "country", "difficultyLevel"];
+    const requiredFields = ['name', 'country', 'difficultyLevel'];
     for (const field of requiredFields) {
       if (!req.body[field]) {
         return res.status(400).json({
-          success: false,
-          data: null,
-          error: {
-            code: "VALIDATION_ERROR",
-            message: `${field} is required.`,
-            details: { field }
-          }
+          success: false, data: null,
+          error: { code: 'VALIDATION_ERROR', message: `${field} is required.`, details: { field } }
         });
       }
     }
 
-    resorts[resortIndex] = {
-      ...resorts[resortIndex],
-      name,
-      country,
-      elevation: elevation !== undefined ? elevation : resorts[resortIndex].elevation,
-      terrainType: terrainType !== undefined ? terrainType : resorts[resortIndex].terrainType,
-      difficultyLevel,
-      latitude: latitude !== undefined ? latitude : resorts[resortIndex].latitude,
-      longitude: longitude !== undefined ? longitude : resorts[resortIndex].longitude
-    };
+    await resort.update({
+      name, country,
+      elevation:         elevation        !== undefined ? elevation        : resort.elevation,
+      terrainType:       terrainType      !== undefined ? terrainType      : resort.terrainType,
+      difficultyLevel:   parseInt(difficultyLevel),
+      snowboardFriendly: snowboardFriendly !== undefined ? Boolean(snowboardFriendly) : resort.snowboardFriendly,
+      latitude:          latitude         !== undefined ? (latitude != null ? parseFloat(latitude) : null)   : resort.latitude,
+      longitude:         longitude        !== undefined ? (longitude != null ? parseFloat(longitude) : null) : resort.longitude
+    });
 
     return res.status(200).json({ success: true, data: { resortId: id }, error: null });
   } catch (err) {
@@ -145,30 +114,38 @@ const updateResort = (req, res, next) => {
 };
 
 // DELETE /resorts/:id
-const deleteResort = (req, res, next) => {
+const deleteResort = async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
-    const resortIndex = resorts.findIndex((r) => r.resortId === id);
+    const resort = await Resort.findByPk(id);
 
-    if (resortIndex === -1) {
+    if (!resort) {
       return res.status(404).json({
-        success: false,
-        data: null,
-        error: {
-          code: "NOT_FOUND",
-          message: `Resort with id ${id} not found.`,
-          details: {}
-        }
+        success: false, data: null,
+        error: { code: 'NOT_FOUND', message: `Resort with id ${id} not found.`, details: {} }
       });
     }
 
-    resorts.splice(resortIndex, 1);
-
+    await resort.destroy();
     return res.status(200).json({ success: true, data: { resortId: id }, error: null });
   } catch (err) {
     next(err);
   }
 };
+
+function fmtResort(r) {
+  return {
+    resortId:          r.id,
+    name:              r.name,
+    country:           r.country,
+    elevation:         r.elevation,
+    terrainType:       r.terrainType,
+    difficultyLevel:   r.difficultyLevel,
+    snowboardFriendly: r.snowboardFriendly,
+    latitude:          r.latitude  != null ? parseFloat(r.latitude)  : null,
+    longitude:         r.longitude != null ? parseFloat(r.longitude) : null
+  };
+}
 
 
 // ── Weather helpers ────────────────────────────────────────────────────────────
@@ -265,27 +242,33 @@ async function fetchTypical(resort, startDate, endDate) {
 const getWeatherForecast = async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
-    const resort = resorts.find(r => r.resortId === id);
+    const resort = await Resort.findByPk(id);
 
     if (!resort) {
       return res.status(404).json({
         success: false, data: null,
-        error: { code: "NOT_FOUND", message: `Resort ${id} not found.`, details: {} }
+        error: { code: 'NOT_FOUND', message: `Resort ${id} not found.`, details: {} }
       });
     }
 
-    if (resort.latitude == null || resort.longitude == null) {
+    // Normalize DECIMAL strings from MySQL to floats before passing to weather helpers
+    const lat = resort.latitude  != null ? parseFloat(resort.latitude)  : null;
+    const lng = resort.longitude != null ? parseFloat(resort.longitude) : null;
+
+    if (lat == null || lng == null) {
       return res.status(422).json({
         success: false, data: null,
-        error: { code: "NO_COORDINATES", message: `Resort "${resort.name}" has no coordinates.`, details: {} }
+        error: { code: 'NO_COORDINATES', message: `Resort "${resort.name}" has no coordinates.`, details: {} }
       });
     }
+
+    const resortForWeather = { name: resort.name, latitude: lat, longitude: lng };
 
     const { startDate, endDate } = req.query;
     if ((startDate && !endDate) || (!startDate && endDate)) {
       return res.status(400).json({
         success: false, data: null,
-        error: { code: "VALIDATION_ERROR", message: "Provide both startDate and endDate, or neither.", details: {} }
+        error: { code: 'VALIDATION_ERROR', message: 'Provide both startDate and endDate, or neither.', details: {} }
       });
     }
 
@@ -295,36 +278,36 @@ const getWeatherForecast = async (req, res, next) => {
     let mode, label, confidence, days, partialForecast = false;
 
     if (!startDate) {
-      mode = "forecast"; label = "7-day forecast"; confidence = "high";
-      days = await fetchForecast(resort, null, null, 7);
+      mode = 'forecast'; label = '7-day forecast'; confidence = 'high';
+      days = await fetchForecast(resortForWeather, null, null, 7);
     } else {
       const s = new Date(startDate), e = new Date(endDate);
 
       if (e < today) {
-        mode = "historical"; label = "Weather during your trip"; confidence = "medium";
-        days = await fetchHistorical(resort, startDate, endDate);
+        mode = 'historical'; label = 'Weather during your trip'; confidence = 'medium';
+        days = await fetchHistorical(resortForWeather, startDate, endDate);
       } else if (s <= horizonDate) {
-        mode = "forecast"; label = "Forecast for your trip"; confidence = "high";
+        mode = 'forecast'; label = 'Forecast for your trip'; confidence = 'high';
         if (e > horizonDate) {
           partialForecast = true;
-          days = await fetchForecast(resort, startDate, horizonDate.toISOString().split('T')[0]);
+          days = await fetchForecast(resortForWeather, startDate, horizonDate.toISOString().split('T')[0]);
         } else {
-          days = await fetchForecast(resort, startDate, endDate);
+          days = await fetchForecast(resortForWeather, startDate, endDate);
         }
       } else {
         const month = new Date(startDate).toLocaleString('en-US', { month: 'long' });
-        mode = "typical"; label = `Typical ${month} conditions`; confidence = "low";
-        days = await fetchTypical(resort, startDate, endDate);
+        mode = 'typical'; label = `Typical ${month} conditions`; confidence = 'low';
+        days = await fetchTypical(resortForWeather, startDate, endDate);
       }
     }
 
     const data = {
       mode, label, confidence,
-      resort: { id: resort.resortId, name: resort.name, latitude: resort.latitude, longitude: resort.longitude },
+      resort: { id: resort.id, name: resort.name, latitude: lat, longitude: lng },
       dateRange: { startDate: days[0]?.date ?? startDate, endDate: days[days.length - 1]?.date ?? endDate },
       days,
       summary: computeSummary(days),
-      source: "Open-Meteo",
+      source: 'Open-Meteo'
     };
     if (partialForecast) data.partialForecast = true;
 

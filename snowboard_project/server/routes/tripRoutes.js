@@ -9,12 +9,27 @@ const {
   updateTrip,
   deleteTrip
 } = require("../controllers/tripController");
+const { discoverTrips, joinTrip, getTripMembers, inviteFriend } = require("../controllers/tripMemberController");
+
+const ANY = ["user", "manager", "admin"];
+
+// GET /trips/discover     → any authenticated user (must be before /:id)
+router.get("/discover", auth(ANY), discoverTrips);
 
 // GET /trips              → admin, manager only (global list is sensitive)
 router.get("/", auth(["admin", "manager"]), getAllTrips);
 
 // GET /trips/:id          → all roles
 router.get("/:id", getTripById);
+
+// GET /trips/:id/members  → any authenticated user
+router.get("/:id/members", auth(ANY), getTripMembers);
+
+// POST /trips/:id/join    → any authenticated user
+router.post("/:id/join", auth(ANY), joinTrip);
+
+// POST /trips/:id/invite  → any authenticated user (creator-only enforced in controller)
+router.post("/:id/invite", auth(ANY), inviteFriend);
 
 // POST /trips             → user, admin, manager
 router.post("/", auth(["user","admin", "manager"]), createTrip);

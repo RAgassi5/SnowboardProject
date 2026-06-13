@@ -390,6 +390,73 @@ export const deleteTrip = (tripId, role) =>
   });
 
 // ═════════════════════════════════════════════════════════════════════════════
+// TRIP DISCOVERY & MEMBERSHIP
+// ═════════════════════════════════════════════════════════════════════════════
+
+export const discoverTrips = (filters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.sportType)  params.set('sportType',  filters.sportType);
+  if (filters.skillLevel) params.set('skillLevel', filters.skillLevel);
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  return request(`/trips/discover${qs}`);
+};
+
+export const joinTrip = (tripId) =>
+  request(`/trips/${tripId}/join`, { method: 'POST' });
+
+export const getTripMembers = (tripId) =>
+  request(`/trips/${tripId}/members`);
+
+export const approveTripMember = (memberId) =>
+  request(`/trip-members/${memberId}/approve`, { method: 'PUT' });
+
+export const rejectTripMember = (memberId) =>
+  request(`/trip-members/${memberId}/reject`, { method: 'PUT' });
+
+export const getJoinedTrips = (userId) =>
+  request(`/users/${userId}/joined-trips`);
+
+export const removeTripMember = (memberId) =>
+  request(`/trip-members/${memberId}`, { method: 'DELETE' });
+
+export const inviteFriendToTrip = (tripId, userId) =>
+  request(`/trips/${tripId}/invite`, { method: 'POST', body: { userId } });
+
+export const getUserInvitations = (userId) =>
+  request(`/users/${userId}/invitations`);
+
+export const getUnreadCounts = (userId) =>
+  request(`/users/${userId}/unread-counts`);
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SOCIAL — Friends & Friend Requests
+// ═════════════════════════════════════════════════════════════════════════════
+
+export const searchUsers = (q) =>
+  request(`/users/search?q=${encodeURIComponent(q)}`);
+
+export const getFriends = (userId) =>
+  request(`/users/${userId}/friends`);
+
+export const getReceivedRequests = (userId) =>
+  request(`/users/${userId}/friend-requests/received`);
+
+export const getSentRequests = (userId) =>
+  request(`/users/${userId}/friend-requests/sent`);
+
+export const sendFriendRequest = (receiverId) =>
+  request('/friend-requests', { method: 'POST', body: { receiverId } });
+
+export const acceptFriendRequest = (requestId) =>
+  request(`/friend-requests/${requestId}/accept`, { method: 'PUT' });
+
+export const rejectFriendRequest = (requestId) =>
+  request(`/friend-requests/${requestId}/reject`, { method: 'PUT' });
+
+export const removeFriend = (friendshipId) =>
+  request(`/friendships/${friendshipId}`, { method: 'DELETE' });
+
+// ═════════════════════════════════════════════════════════════════════════════
 // RESORT LOCATIONS
 // ═════════════════════════════════════════════════════════════════════════════
 

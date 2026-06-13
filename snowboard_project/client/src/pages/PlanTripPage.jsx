@@ -49,6 +49,8 @@ function PlanTripPage() {
     endDate:    '',
     skillLevel: (user?.skillLevel ?? 3).toString(),
     sportType:  user?.sportType ?? 'snowboard',
+    privacy:    'public',
+    maxMembers: '',
   });
   const [fieldErrors, setFieldErrors]    = useState({});
   const [recsLoading, setRecsLoading]    = useState(false);
@@ -127,10 +129,14 @@ function PlanTripPage() {
     setSaveError('');
     try {
       await createTrip({
-        userId:    user.userId,
-        resortId:  selected.resortId,
-        startDate: form.startDate,
-        endDate:   form.endDate,
+        userId:     user.userId,
+        resortId:   selected.resortId,
+        startDate:  form.startDate,
+        endDate:    form.endDate,
+        skillLevel: parseInt(form.skillLevel),
+        sportType:  form.sportType,
+        privacy:    form.privacy,
+        maxMembers: form.maxMembers ? parseInt(form.maxMembers) : null,
       }, role);
       navigate('/trips');
     } catch (err) {
@@ -220,6 +226,39 @@ function PlanTripPage() {
                 <span className="form-error" role="alert">⚠ {fieldErrors.sportType}</span>
               )}
             </div>
+
+            {/* Privacy */}
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Trip Privacy</label>
+              <div style={styles.sportToggle}>
+                {[
+                  { value: 'public',       label: '🌍 Public' },
+                  { value: 'friends-only', label: '👥 Friends Only' },
+                  { value: 'private',      label: '🔒 Private' },
+                ].map(opt => (
+                  <label key={opt.value} htmlFor={`pt-privacy-${opt.value}`}
+                    style={{ ...styles.sportOpt, ...(form.privacy === opt.value ? styles.sportOptActive : {}) }}>
+                    <input id={`pt-privacy-${opt.value}`} type="radio" name="privacy"
+                      value={opt.value} checked={form.privacy === opt.value}
+                      onChange={handleChange} style={{ display: 'none' }} />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Max members */}
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label htmlFor="pt-maxMembers" className="form-label">Max Members <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></label>
+              <input
+                id="pt-maxMembers" name="maxMembers" type="number"
+                className="form-input"
+                value={form.maxMembers}
+                onChange={handleChange}
+                min="1" max="100"
+                placeholder="No limit"
+              />
+            </div>
           </div>
 
           <ErrorMessage message={recsError} onDismiss={() => setRecsError('')} />
@@ -292,6 +331,13 @@ function PlanTripPage() {
                   <OverviewItem icon={selected.snowboardFriendly ? '✅' : '⚠️'}
                     label="Board-friendly"
                     value={selected.snowboardFriendly ? 'Yes' : 'Cat-tracks present'} />
+                  <OverviewItem
+                    icon={{ public: '🌍', 'friends-only': '👥', private: '🔒' }[form.privacy]}
+                    label="Privacy"
+                    value={{ public: 'Public', 'friends-only': 'Friends Only', private: 'Private' }[form.privacy]} />
+                  {form.maxMembers && (
+                    <OverviewItem icon="👥" label="Max Members" value={form.maxMembers} />
+                  )}
                 </div>
               </div>
 

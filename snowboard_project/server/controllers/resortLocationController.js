@@ -1,180 +1,131 @@
-const resortLocations = require("../models/resortLocations");
-const resorts = require("../models/resorts");
+'use strict';
+const { ResortLocation, Resort } = require('../db');
 
-// GET /resort-locations
-const getAllLocations = (req, res, next) => {
+// GET /resort-locations  (admin/manager only)
+const getAllLocations = async (req, res, next) => {
   try {
-    return res.status(200).json({ success: true, data: resortLocations, error: null });
+    const locations = await ResortLocation.findAll();
+    return res.status(200).json({ success: true, data: locations.map(fmtLocation), error: null });
   } catch (err) {
     next(err);
   }
 };
 
 // GET /resort-locations/:id
-const getLocationById = (req, res, next) => {
+const getLocationById = async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
-    const location = resortLocations.find((l) => l.locationId === id);
-
+    const location = await ResortLocation.findByPk(id);
     if (!location) {
       return res.status(404).json({
-        success: false,
-        data: null,
-        error: {
-          code: "NOT_FOUND",
-          message: `Resort location with id ${id} not found.`,
-          details: {}
-        }
+        success: false, data: null,
+        error: { code: 'NOT_FOUND', message: `Resort location with id ${id} not found.`, details: {} }
       });
     }
-
-    return res.status(200).json({ success: true, data: location, error: null });
+    return res.status(200).json({ success: true, data: fmtLocation(location), error: null });
   } catch (err) {
     next(err);
   }
 };
 
 // GET /resorts/:id/locations  (supports ?type= filter)
-const getLocationsByResortId = (req, res, next) => {
+const getLocationsByResortId = async (req, res, next) => {
   try {
     const resortId = parseInt(req.params.id);
 
-    const resortExists = resorts.find((r) => r.resortId === resortId);
-    if (!resortExists) {
+    const resort = await Resort.findByPk(resortId);
+    if (!resort) {
       return res.status(404).json({
-        success: false,
-        data: null,
-        error: {
-          code: "NOT_FOUND",
-          message: `Resort with id ${resortId} not found.`,
-          details: {}
-        }
+        success: false, data: null,
+        error: { code: 'NOT_FOUND', message: `Resort with id ${resortId} not found.`, details: {} }
       });
     }
 
-    let result = resortLocations.filter((l) => l.resortId === resortId);
-
+    const where = { resortId };
     const { type } = req.query;
-    if (type) {
-      result = result.filter((l) => l.type.toLowerCase() === type.toLowerCase());
-    }
+    if (type) where.type = type.toLowerCase();
 
-    return res.status(200).json({ success: true, data: result, error: null });
+    const locations = await ResortLocation.findAll({ where });
+    return res.status(200).json({ success: true, data: locations.map(fmtLocation), error: null });
   } catch (err) {
     next(err);
   }
 };
 
 // POST /resort-locations
-const createLocation = (req, res, next) => {
+const createLocation = async (req, res, next) => {
   try {
     const { resortId, name, type, description } = req.body;
 
-    // Validate required fields
-    const requiredFields = ["resortId", "name", "type"];
+    const requiredFields = ['resortId', 'name', 'type'];
     for (const field of requiredFields) {
-      if (req.body[field] === undefined || req.body[field] === null || req.body[field] === "") {
+      if (req.body[field] === undefined || req.body[field] === null || req.body[field] === '') {
         return res.status(400).json({
-          success: false,
-          data: null,
-          error: {
-            code: "VALIDATION_ERROR",
-            message: `${field} is required.`,
-            details: { field }
-          }
+          success: false, data: null,
+          error: { code: 'VALIDATION_ERROR', message: `${field} is required.`, details: { field } }
         });
       }
     }
 
-    // Validate resortId exists
-    const resortExists = resorts.find((r) => r.resortId === parseInt(resortId));
-    if (!resortExists) {
+    const resort = await Resort.findByPk(parseInt(resortId));
+    if (!resort) {
       return res.status(404).json({
-        success: false,
-        data: null,
-        error: {
-          code: "NOT_FOUND",
-          message: `Resort with id ${resortId} not found.`,
-          details: {}
-        }
+        success: false, data: null,
+        error: { code: 'NOT_FOUND', message: `Resort with id ${resortId} not found.`, details: {} }
       });
     }
 
-    const newId = Math.max(...resortLocations.map((l) => l.locationId), 0) + 1;
-
-    const newLocation = {
-      locationId: newId,
+    const location = await ResortLocation.create({
       resortId: parseInt(resortId),
       name,
       type,
       description: description || null
-    };
+    });
 
-    resortLocations.push(newLocation);
-
-    return res.status(201).json({ success: true, data: { locationId: newId }, error: null });
+    return res.status(201).json({ success: true, data: { locationId: location.id }, error: null });
   } catch (err) {
     next(err);
   }
 };
 
 // PUT /resort-locations/:id
-const updateLocation = (req, res, next) => {
+const updateLocation = async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
-    const locationIndex = resortLocations.findIndex((l) => l.locationId === id);
-
-    if (locationIndex === -1) {
+    const location = await ResortLocation.findByPk(id);
+    if (!location) {
       return res.status(404).json({
-        success: false,
-        data: null,
-        error: {
-          code: "NOT_FOUND",
-          message: `Resort location with id ${id} not found.`,
-          details: {}
-        }
+        success: false, data: null,
+        error: { code: 'NOT_FOUND', message: `Resort location with id ${id} not found.`, details: {} }
       });
     }
 
     const { resortId, name, type, description } = req.body;
 
-    // Validate required fields
-    const requiredFields = ["resortId", "name", "type"];
+    const requiredFields = ['resortId', 'name', 'type'];
     for (const field of requiredFields) {
-      if (req.body[field] === undefined || req.body[field] === null || req.body[field] === "") {
+      if (req.body[field] === undefined || req.body[field] === null || req.body[field] === '') {
         return res.status(400).json({
-          success: false,
-          data: null,
-          error: {
-            code: "VALIDATION_ERROR",
-            message: `${field} is required.`,
-            details: { field }
-          }
+          success: false, data: null,
+          error: { code: 'VALIDATION_ERROR', message: `${field} is required.`, details: { field } }
         });
       }
     }
 
-    // Validate resortId exists
-    const resortExists = resorts.find((r) => r.resortId === parseInt(resortId));
-    if (!resortExists) {
+    const resort = await Resort.findByPk(parseInt(resortId));
+    if (!resort) {
       return res.status(404).json({
-        success: false,
-        data: null,
-        error: {
-          code: "NOT_FOUND",
-          message: `Resort with id ${resortId} not found.`,
-          details: {}
-        }
+        success: false, data: null,
+        error: { code: 'NOT_FOUND', message: `Resort with id ${resortId} not found.`, details: {} }
       });
     }
 
-    resortLocations[locationIndex] = {
-      ...resortLocations[locationIndex],
-      resortId: parseInt(resortId),
+    await location.update({
+      resortId:    parseInt(resortId),
       name,
       type,
-      description: description !== undefined ? description : resortLocations[locationIndex].description
-    };
+      description: description !== undefined ? description : location.description
+    });
 
     return res.status(200).json({ success: true, data: { locationId: id }, error: null });
   } catch (err) {
@@ -183,36 +134,31 @@ const updateLocation = (req, res, next) => {
 };
 
 // DELETE /resort-locations/:id
-const deleteLocation = (req, res, next) => {
+const deleteLocation = async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
-    const locationIndex = resortLocations.findIndex((l) => l.locationId === id);
-
-    if (locationIndex === -1) {
+    const location = await ResortLocation.findByPk(id);
+    if (!location) {
       return res.status(404).json({
-        success: false,
-        data: null,
-        error: {
-          code: "NOT_FOUND",
-          message: `Resort location with id ${id} not found.`,
-          details: {}
-        }
+        success: false, data: null,
+        error: { code: 'NOT_FOUND', message: `Resort location with id ${id} not found.`, details: {} }
       });
     }
-
-    resortLocations.splice(locationIndex, 1);
-
+    await location.destroy();
     return res.status(200).json({ success: true, data: { locationId: id }, error: null });
   } catch (err) {
     next(err);
   }
 };
 
-module.exports = {
-  getAllLocations,
-  getLocationById,
-  getLocationsByResortId,
-  createLocation,
-  updateLocation,
-  deleteLocation
-};
+function fmtLocation(l) {
+  return {
+    locationId:  l.id,
+    resortId:    l.resortId,
+    name:        l.name,
+    type:        l.type,
+    description: l.description ?? null
+  };
+}
+
+module.exports = { getAllLocations, getLocationById, getLocationsByResortId, createLocation, updateLocation, deleteLocation };

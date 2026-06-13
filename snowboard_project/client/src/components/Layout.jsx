@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import Snowfall from 'react-snowfall';
 import Navbar from './Navbar';
 import Footer from './Footer';
+import { connectSocket, disconnectSocket } from '../services/socket';
 
 // ── Snow preference helpers ───────────────────────────────────────────────────
 
@@ -21,6 +22,12 @@ const getSnowEnabled = () => localStorage.getItem(SNOW_KEY) !== 'false';
  */
 function Layout() {
   const [snowEnabled, setSnowEnabled] = useState(getSnowEnabled);
+
+  // Connect socket when entering protected area, disconnect on leave
+  useEffect(() => {
+    connectSocket();
+    return () => disconnectSocket();
+  }, []);
 
   // Listen for real-time toggle changes fired from SettingsPage
   useEffect(() => {
