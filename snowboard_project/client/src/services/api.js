@@ -307,6 +307,16 @@ export const resetGearChatHistory = (tripId) =>
   request(`/gear-chat/${tripId}`, { method: 'DELETE' });
 
 // ═════════════════════════════════════════════════════════════════════════════
+// DASHBOARD
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /dashboard
+ * Returns all dashboard sections in a single aggregated response.
+ */
+export const getDashboard = () => request('/dashboard');
+
+// ═════════════════════════════════════════════════════════════════════════════
 // USERS
 // ═════════════════════════════════════════════════════════════════════════════
 
