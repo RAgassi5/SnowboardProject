@@ -22,6 +22,7 @@ Node.js + Express REST API with Socket.IO real-time layer and Groq LLM AI featur
   - [Resort Locations](#resort-locations)
   - [Social — Friends](#social--friends)
   - [AI Features](#ai-features)
+  - [Dashboard](#dashboard)
 - [Socket.IO Events](#socketio-events)
 - [Database Models](#database-models)
 - [Error Codes](#error-codes)
@@ -84,9 +85,10 @@ server/
 │   ├── resortController.js
 │   ├── tripController.js
 │   ├── resortLocationController.js
-│   ├── aiController.js        ← All 4 AI endpoints (real Groq LLM + rule-based fallback)
+│   ├── aiController.js        ← AI endpoints incl. gear chat (real Groq LLM + rule-based fallback)
 │   ├── friendController.js    ← Friend requests and friendships
-│   └── tripMemberController.js← Trip discovery, join, approve, leave
+│   ├── tripMemberController.js← Trip discovery, join, approve, leave
+│   └── dashboardController.js ← Aggregated dashboard data for the logged-in user
 ├── routes/
 │   ├── authRoutes.js
 │   ├── userRoutes.js          ← Also mounts social sub-routes
@@ -95,14 +97,15 @@ server/
 │   ├── resortLocationRoutes.js
 │   ├── aiRoutes.js
 │   ├── socialRoutes.js        ← Friend request CRUD
-│   └── tripMemberRoutes.js    ← Approve / reject / remove members
+│   ├── tripMemberRoutes.js    ← Approve / reject / remove members
+│   └── dashboardRoutes.js
 ├── db/
 │   ├── index.js               ← Sequelize instance + model registration + associations
 │   ├── config.js              ← Sequelize CLI config (reads .env)
 │   ├── models/                ← Model definitions (User, Resort, Trip, …)
 │   ├── migrations/            ← One migration per table
 │   └── seeders/               ← Demo data seeders
-├── models/                    ← Static reference data (skill levels, gear, location tips)
+├── constants/                  ← Static lookup tables (skill levels, AI-fallback gear/location content) — not database data
 ├── utils/
 │   └── llm.js                 ← Groq SDK client singleton
 └── middleware/
@@ -216,6 +219,8 @@ Response `200` — same shape as register.
 | GET | `/users/:id/friends` | any | User's friend list |
 | GET | `/users/:id/friend-requests/received` | any | Incoming pending requests |
 | GET | `/users/:id/friend-requests/sent` | any | Outgoing pending requests |
+| GET | `/users/:id/invitations` | any | Pending trip invitations sent to this user |
+| GET | `/users/:id/unread-counts` | any | Unread chat message counts per trip |
 | POST | `/users` | manager, admin | Create user |
 | PUT | `/users/:id` | manager, admin | Update user |
 | DELETE | `/users/:id` | admin | Delete user |
@@ -269,6 +274,7 @@ Response `200` — same shape as register.
 | GET | `/trips/:id/members` | any | Members of a trip |
 | POST | `/trips` | any | Create trip |
 | POST | `/trips/:id/join` | any | Request to join a trip |
+| POST | `/trips/:id/invite` | any (trip creator) | Invite a friend to join a trip |
 | PUT | `/trips/:id` | any | Update trip |
 | DELETE | `/trips/:id` | user=own only, admin=any | Delete trip |
 
@@ -371,6 +377,9 @@ All AI calls happen **on the backend only**. The Groq API key is never sent to t
 | POST | `/recommend-resorts` | any | Top-3 scored resorts + LLM explanations |
 | POST | `/gear-recommendation` | any | LLM tailored gear list + terrain warnings |
 | POST | `/resort-assistant` | any | LLM sport-specific tips for a location type |
+| POST | `/gear-chat` | any | Multi-turn conversational gear advisor for a trip |
+| GET | `/gear-chat/:tripId` | any | Saved gear-chat history for current user + trip |
+| DELETE | `/gear-chat/:tripId` | any | Clear saved gear-chat history for current user + trip |
 
 **POST /resort-summary**
 ```json
@@ -393,7 +402,7 @@ Response `data`: `{ startDate, endDate, skillLevel, skillLevelLabel, sportType, 
 ```json
 { "resortId": 1, "skillLevel": 4, "sportType": "snowboard" }
 ```
-Response `data`: `{ resortId, resortName, snowboardFriendly, sportType, skillLevel, skillLevelLabel, suggestedGear: string[], warning? }`
+Response `data`: `{ resortId, resortName, snowboardFriendly, sportType, skillLevel, skillLevelLabel, suggestedGear: string[], aiGenerated: boolean, warning? }`
 
 **POST /resort-assistant**
 ```json
@@ -401,7 +410,47 @@ Response `data`: `{ resortId, resortName, snowboardFriendly, sportType, skillLev
 ```
 `locationType` values: `lift` · `slope` · `restaurant` · `park` · `rental`
 
-Response `data`: `{ resortId, resortName, sportType, locationType, generalTip, inResortSpots: [{ locationId, name, description }] }`
+Response `data`: `{ resortId, resortName, sportType, locationType, generalTip, aiGenerated: boolean, inResortSpots: [{ locationId, name, description }] }`
+
+> `aiGenerated` is `true` when the Groq LLM call succeeded, `false` when the response is rule-based fallback content from `server/constants/`. The frontend shows a small "AI advisor unavailable, showing standard recommendations" notice whenever `aiGenerated` is `false`, so fallback content is never silently presented as real AI output.
+
+**POST /gear-chat**
+```json
+{
+  "message": "What boots should I bring for icy conditions?",
+  "history": [{ "role": "user", "content": "..." }, { "role": "assistant", "content": "..." }],
+  "context": { "tripId": 5, "resort": {}, "trip": {}, "rider": {}, "forecast": {} }
+}
+```
+Response `data`: `{ reply: string }` — also persists the user message and the reply to `gear_chat_messages`.
+
+**GET /gear-chat/:tripId**
+Response `data`: `[{ role: 'user' | 'assistant', content: string }]` — conversation history for the current user (from `x-user-id`) and this trip.
+
+**DELETE /gear-chat/:tripId**
+Deletes all saved gear-chat messages for the current user + trip. Response `data`: `{ deleted: true }`.
+
+---
+
+### Dashboard
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| GET | `/dashboard` | any | Aggregated dashboard data for the logged-in user |
+
+**GET /dashboard**
+
+Returns everything the Dashboard page needs in a single call, computed in parallelized phases (`Promise.all` / `Promise.allSettled`) to avoid frontend waterfalls:
+
+Response `data`: `{ nextTrip, attentionItems, aiSuggestions, conditionsWatch, resortSpotlight, recentActivity, recentTrips }`
+
+- `nextTrip` — the user's soonest upcoming trip, or `null`
+- `attentionItems` — pending join requests, friend requests, trip invitations, and unread chat messages that need the user's action
+- `aiSuggestions` — AI-generated packing/prep suggestions for the next trip (Groq, with fallback)
+- `conditionsWatch` — weather snapshot for upcoming trips
+- `resortSpotlight` — a scored resort recommendation
+- `recentActivity` — recent social/trip activity feed
+- `recentTrips` — the user's most recently created/joined trips
 
 ---
 
@@ -430,8 +479,11 @@ const socket = io('http://localhost:3000', { auth: { userId: 3 } });
 | `user:online` | `{ userId }` | A friend came online |
 | `user:offline` | `{ userId }` | A friend went offline |
 | `chat:message` | `{ messageId, tripId, userId, firstName, lastName, content, createdAt }` | New message in a trip room |
-| `friend:request` | `{ requestId, senderId, firstName, lastName }` | Someone sent you a friend request |
-| `trip:join-request` | `{ memberId, tripId, userId, firstName, lastName }` | Someone requested to join your trip |
+| `chat:unread-update` | `{ tripId, count }` | Updated unread-message count for a trip, sent to a specific user's socket on join-clear or on a new message to a participant not currently viewing the chat |
+| `friend:request` | `{ requestId, senderId, firstName, lastName }` | Sent to the receiver if online, when a friend request is sent or re-sent (`friendController.js`, not `socket.js`) |
+| `trip:join-request` | `{ memberId, tripId, userId, firstName, lastName }` | Sent to the trip creator if online, when someone requests to join their trip (`tripMemberController.js`, not `socket.js`) |
+
+> **Note:** `friend:request` and `trip:join-request` are not registered in `socket.js`'s connection handler — they are emitted directly from `friendController.js` and `tripMemberController.js` via `getIO()` / `getUserSocketId()` (imported from `../socket`), at the point the underlying REST request succeeds. `friend:request` is consumed by `Navbar.jsx`, `ProfilePanel.jsx`, and `FriendsPage.jsx` to refresh their friend-request state. `trip:join-request` is consumed by `Navbar.jsx` (combined request badge), `DashboardPage.jsx` (Requires Attention card), and `TripDetailsPage.jsx` (pending member list, when the creator is viewing that trip) to refresh their join-request state live.
 
 ---
 
@@ -447,6 +499,8 @@ const socket = io('http://localhost:3000', { auth: { userId: 3 } });
 | `friendships` | id, user1Id FK, user2Id FK — UNIQUE(user1Id, user2Id) — enforce user1Id < user2Id |
 | `trip_members` | id, tripId FK, userId FK, status ENUM — UNIQUE(tripId, userId) |
 | `trip_messages` | id, tripId FK, userId FK, content TEXT |
+| `trip_read_status` | id, userId FK, tripId FK, lastReadAt — UNIQUE(userId, tripId) |
+| `gear_chat_messages` | id, tripId FK, userId FK, role ENUM('user','assistant'), content TEXT |
 
 Sequelize uses `underscored: true` — camelCase JS fields map to snake_case DB columns automatically.
 
@@ -479,7 +533,7 @@ mysql -u root -p -e "CREATE DATABASE snowtrip_db;"
 cp .env.example .env
 # Edit DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, GROQ_API_KEY
 
-# 3. Run migrations (creates all 8 tables in dependency order)
+# 3. Run migrations (creates all 10 tables in dependency order)
 npm run db:migrate
 
 # 4. Seed demo data
@@ -520,4 +574,6 @@ users → friend_requests (senderId, receiverId)
 users → friendships (user1Id, user2Id)
 trips + users → trip_members
 trips + users → trip_messages
+trips + users → trip_read_status
+trips + users → gear_chat_messages
 ```

@@ -19,6 +19,7 @@ A full-stack web application for planning ski and snowboard trips. Users browse 
 - [Real-Time Features (Socket.IO)](#real-time-features-socketio)
 - [AI Features (Groq LLM)](#ai-features-groq-llm)
 - [Roles and Permissions](#roles-and-permissions)
+- [Known Limitations](#known-limitations)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -60,7 +61,7 @@ snowboard_project/
 │   │   ├── models/                ← Sequelize model definitions
 │   │   ├── migrations/            ← Schema migration files
 │   │   └── seeders/               ← Seed data files
-│   ├── models/                    ← Static reference data (gear, skill levels)
+│   ├── constants/                 ← Static lookup tables (skill levels, AI-fallback gear/location content)
 │   ├── utils/
 │   │   └── llm.js                 ← Groq client (backend only)
 │   ├── middleware/                ← Auth (RBAC), request logger
@@ -89,7 +90,7 @@ EXIT;
 cd server
 npm install
 cp .env.example .env          # then fill in your DB credentials and Groq API key
-npm run db:migrate            # creates all 8 tables
+npm run db:migrate            # creates all 10 tables
 npm run db:seed               # inserts demo resorts, users, trips, locations
 npm start
 # → http://localhost:3000
@@ -140,7 +141,7 @@ Get a free Groq key at https://console.groq.com → API Keys.
 
 | Script | What it does |
 |---|---|
-| `npm run db:migrate` | Create all 8 tables from migration files |
+| `npm run db:migrate` | Create all 10 tables from migration files |
 | `npm run db:seed` | Insert demo data (users, resorts, trips, locations) |
 | `npm run db:reset` | Drop all tables, re-migrate, re-seed |
 
@@ -156,6 +157,8 @@ Get a free Groq key at https://console.groq.com → API Keys.
 | `friendships` | Confirmed friendships (normalised: user1Id < user2Id) |
 | `trip_members` | Join requests and approved memberships |
 | `trip_messages` | Group chat messages per trip |
+| `trip_read_status` | Per-user last-read timestamp per trip chat (drives unread badges) |
+| `gear_chat_messages` | Persisted conversation history for the AI gear chat assistant |
 
 ---
 
@@ -184,7 +187,7 @@ Get a free Groq key at https://console.groq.com → API Keys.
 |---|---|---|
 | `/login` | Login | Email + password login |
 | `/register` | Register | Full registration with sport type and skill level |
-| `/dashboard` | Dashboard | Personalised welcome, recent trips, quick links |
+| `/dashboard` | Dashboard | Trip Command Center — next upcoming trip, items needing attention (join requests, invitations, unread messages), AI packing suggestions, weather watch, scored resort spotlight, and recent activity, all aggregated in one call |
 | `/plan-trip` | Plan Trip | Dates + skill → AI top-3 resort picks → weather → save trip with privacy + capacity |
 | `/trips` | My Trips | All saved trips with resort details and delete |
 | `/trips/:id` | Trip Details | Trip overview, member management (approve/reject/remove/leave), weather, AI summary, in-resort locations, resort assistant, group chat |
@@ -211,8 +214,9 @@ The backend exposes a Socket.IO server on port 3000. The frontend connects autom
 | `chat:send` | client → server (ack) | Send a message; persisted to DB, broadcast to room |
 | `chat:message` | server → room | New message delivered to all room members |
 | `chat:history` | client → server (ack) | Fetch the last 100 messages for a trip |
-| `friend:request` | server → client | Real-time notification when someone sends you a friend request |
-| `trip:join-request` | server → client | Real-time notification to trip creator when someone requests to join |
+| `chat:unread-update` | server → client | Pushes an updated unread-message count for a trip to a specific user's socket (sent on join-clear and on new messages to participants not currently viewing the chat) |
+| `friend:request` | server → client | Sent when someone sends or re-sends you a friend request, if you're online. Emitted directly from `friendController.js` (not `socket.js`'s connection handler) via `getIO()`/`getUserSocketId()`. Triggers a badge/list refresh in `Navbar.jsx`, `ProfilePanel.jsx`, and `FriendsPage.jsx`. |
+| `trip:join-request` | server → client | Sent to a trip's creator when someone requests to join, if the creator is online. Emitted directly from `tripMemberController.js`. Triggers a live badge/data refresh in `Navbar.jsx` (combined request badge), `DashboardPage.jsx` (Requires Attention card), and `TripDetailsPage.jsx` (pending member list), if the creator is on that page. |
 
 ### Socket Authentication
 
@@ -236,8 +240,11 @@ All AI calls are made on the **backend only** — the API key is never sent to t
 | `POST /recommend-resorts` | Natural-language explanations for the top-3 scored resorts |
 | `POST /gear-recommendation` | Tailored gear list (6–8 items) and terrain warnings |
 | `POST /resort-assistant` | Sport-specific in-resort tips for a chosen location type |
+| `POST /gear-chat` | Multi-turn conversational gear advisor for a trip; replies use trip/resort/forecast context |
+| `GET /gear-chat/:tripId` | Returns the saved gear-chat conversation history for the current user + trip |
+| `DELETE /gear-chat/:tripId` | Clears the saved gear-chat history for the current user + trip |
 
-Each endpoint has a **rule-based fallback** — if the Groq API is unavailable the endpoint still returns a valid response, the app never crashes.
+Each endpoint has a **rule-based fallback** (from `server/constants/`) — if the Groq API is unavailable the endpoint still returns a valid response instead of crashing. `gear-recommendation` and `resort-assistant` responses include an `aiGenerated: true/false` field so the frontend can tell real AI output from fallback content and show a small notice when fallback content is shown.
 
 ---
 
@@ -250,6 +257,19 @@ Each endpoint has a **rule-based fallback** — if the Groq API is unavailable t
 | `admin` | All manager permissions + delete any resource |
 
 Role is enforced by `middleware/auth.js` on every protected route and also checked client-side to show/hide UI elements.
+
+---
+
+## Known Limitations
+
+This is a learning project (BGU Web Development assignment), not a production system. Known gaps:
+
+- **Passwords are stored and compared in plaintext** — there is no hashing (bcrypt or otherwise). Do not reuse a real password when registering a demo account.
+- **No JWT/session tokens.** Auth is enforced via `x-user-role` / `x-user-id` request headers that the backend trusts as-is; these are not cryptographically verified and could be spoofed by a malicious client.
+- **No automated test suite.** Testing is manual.
+- **No pagination** on list endpoints (resorts, trips, users) — fine at seed-data scale, would need work for a large dataset.
+- **Weather forecasts are limited to Open-Meteo's free-tier 16-day horizon.** Trips further out automatically fall back to a 3-year historical average instead of a live forecast (see [`GET /resorts/:id/forecast`](server/README.md) for the three modes).
+- **No rate-limiting** on the AI endpoints.
 
 ---
 

@@ -11,7 +11,8 @@ const resortLocationRoutes = require("./routes/resortLocationRoutes");
 const aiRoutes     = require("./routes/aiRoutes");
 const authRoutes   = require("./routes/authRoutes");
 const socialRoutes     = require("./routes/socialRoutes");
-const tripMemberRoutes = require("./routes/tripMemberRoutes");
+const tripMemberRoutes  = require("./routes/tripMemberRoutes");
+const dashboardRoutes   = require("./routes/dashboardRoutes");
 
 // ─── Global Middleware ────────────────────────────────────────────────────────
 app.use(express.json());
@@ -36,7 +37,8 @@ app.use("/resort-locations", resortLocationRoutes);
 app.use("/", aiRoutes);
 app.use("/", socialRoutes);
 app.use("/trip-members", tripMemberRoutes);
-app.use("/auth", authRoutes);
+app.use("/auth",      authRoutes);
+app.use("/dashboard", dashboardRoutes);
 
 // ─── 404 Fallback — unknown endpoints ────────────────────────────────────────
 app.use((req, res) => {
