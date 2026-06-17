@@ -7,6 +7,7 @@ import {
   getTripMembers, approveTripMember, rejectTripMember, removeTripMember,
   getFriends, inviteFriendToTrip,
 } from '../services/api';
+import { getSocket } from '../services/socket';
 import ConfirmDialog from '../components/ConfirmDialog';
 import GearChatModal from '../components/GearChatModal';
 import FloatingChat from '../components/FloatingChat';
@@ -138,6 +139,20 @@ function TripDetailsPage() {
     load();
     return () => { cancelled = true; };
   }, [tripId, user?.skillLevel]);
+
+  // Live refresh of pending join requests (event is only sent to this trip's creator)
+  useEffect(() => {
+    if (!tripId) return;
+    const sock = getSocket();
+    if (!sock) return;
+
+    const onJoinReq = (payload) => {
+      if (String(payload?.tripId) !== String(tripId)) return;
+      getTripMembers(tripId).then(setMembers).catch(() => {});
+    };
+    sock.on('trip:join-request', onJoinReq);
+    return () => sock.off('trip:join-request', onJoinReq);
+  }, [tripId]);
 
   // ── Delete trip ───────────────────────────────────────────────────────────────
   const handleDeleteTrip = async () => {
@@ -595,6 +610,11 @@ function TripDetailsPage() {
 
         {!assistantLoading && assistantResult && (
           <div style={styles.assistantResult}>
+            {assistantResult.aiGenerated === false && (
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                ℹ️ AI advisor unavailable right now — showing a standard tip.
+              </p>
+            )}
             <div style={styles.generalTip}>
               <span aria-hidden="true">💡</span>
               <p>{assistantResult.generalTip}</p>

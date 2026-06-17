@@ -1,6 +1,6 @@
 'use strict';
 const { User } = require('../db');
-const { VALID_SKILL_LEVELS } = require('../models/skillLevels');
+const { VALID_SKILL_LEVELS } = require('../constants/skillLevels');
 
 const VALID_SPORT_TYPES = ['ski', 'snowboard'];
 
