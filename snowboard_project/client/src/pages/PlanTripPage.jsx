@@ -181,7 +181,7 @@ function PlanTripPage() {
         {presetResort && (
           <div style={styles.presetBanner}>
             <span>🏔️ Creating a trip for <strong>{presetResort.name}</strong> — fill in your trip details below.</span>
-            <button type="button" id="choose-different-resort-btn" onClick={() => setPresetResort(null)}
+            <button type="button" id="choose-different-resort-btn" onClick={() => navigate('/resorts')}
               style={styles.presetBannerLink}>
               Choose a different resort
             </button>

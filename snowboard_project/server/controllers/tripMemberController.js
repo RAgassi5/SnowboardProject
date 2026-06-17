@@ -61,9 +61,12 @@ const discoverTrips = async (req, res, next) => {
       privacyOptions.push({ privacy: 'friends-only', userId: { [Op.in]: friendIds } });
     }
 
+    const today = new Date().toISOString().split('T')[0];
+
     const where = {
       userId: { [Op.ne]: currentUserId },
-      [Op.or]: privacyOptions
+      [Op.or]: privacyOptions,
+      endDate: { [Op.gte]: today }
     };
 
     const { sportType, skillLevel } = req.query;
