@@ -156,6 +156,28 @@
           }
         },
         {
+          "name": "Get User Invitations",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/users/{{userId}}/invitations",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "{{userId}}" }
+            ]
+          }
+        },
+        {
+          "name": "Get Unread Counts",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/users/{{userId}}/unread-counts",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "{{userId}}" }
+            ]
+          }
+        },
+        {
           "name": "Create User",
           "request": {
             "method": "POST",
@@ -390,6 +412,22 @@
           }
         },
         {
+          "name": "Invite Friend to Trip",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/trips/1/invite",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "1" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 4\n}"
+            }
+          }
+        },
+        {
           "name": "Delete Trip (own)",
           "request": {
             "method": "DELETE",
@@ -618,6 +656,60 @@
               "mode": "raw",
               "raw": "{\n  \"resortId\": 1,\n  \"locationType\": \"slope\",\n  \"sportType\": \"snowboard\"\n}"
             }
+          }
+        },
+        {
+          "name": "Gear Chat — Send Message (LLM)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/gear-chat",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "{{userId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"What boots should I bring for icy conditions?\",\n  \"history\": [],\n  \"context\": { \"tripId\": 1 }\n}"
+            }
+          }
+        },
+        {
+          "name": "Gear Chat — Get History",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/gear-chat/1",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "{{userId}}" }
+            ]
+          }
+        },
+        {
+          "name": "Gear Chat — Reset History",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/gear-chat/1",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "{{userId}}" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "Get Dashboard",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/dashboard",
+            "header": [
+              { "key": "x-user-role", "value": "user" },
+              { "key": "x-user-id", "value": "{{userId}}" }
+            ]
           }
         }
       ]

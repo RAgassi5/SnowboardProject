@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   getUserTrips, getResorts, getStoredUser, deleteTrip,
   getUserInvitations, approveTripMember, removeTripMember, getUnreadCounts,
-  getJoinedTrips,
+  getJoinedTrips, getDashboard,
 } from '../services/api';
 import { getSocket, connectSocket } from '../services/socket';
 import TripCard from '../components/TripCard';
@@ -18,6 +18,7 @@ function TripsPage() {
   const [joinedTrips,  setJoinedTrips]  = useState([]);
   const [invitations,  setInvitations]  = useState([]);
   const [unreadCounts, setUnreadCounts] = useState({});
+  const [joinRequestCounts, setJoinRequestCounts] = useState({});
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState('');
 
@@ -29,12 +30,13 @@ function TripsPage() {
       setLoading(true);
       setError('');
       try {
-        const [tripsData, resortsData, invitationsData, unreadData, joinedData] = await Promise.all([
+        const [tripsData, resortsData, invitationsData, unreadData, joinedData, dashboardData] = await Promise.all([
           getUserTrips(user.userId),
           getResorts(),
           getUserInvitations(user.userId),
           getUnreadCounts(user.userId),
           getJoinedTrips(user.userId),
+          getDashboard(),
         ]);
         if (!cancelled) {
           setTrips(tripsData);
@@ -42,6 +44,12 @@ function TripsPage() {
           setInvitations(invitationsData ?? []);
           setUnreadCounts(unreadData ?? {});
           setJoinedTrips(joinedData ?? []);
+
+          const joinCounts = {};
+          for (const item of dashboardData?.attentionItems ?? []) {
+            if (item.type === 'join_request') joinCounts[item.tripId] = item.count ?? 1;
+          }
+          setJoinRequestCounts(joinCounts);
         }
       } catch (err) {
         if (!cancelled) setError(err.message);
@@ -65,8 +73,17 @@ function TripsPage() {
       setUnreadCounts(prev => ({ ...prev, [tripId]: count }));
     };
 
-    socket.on('chat:unread-update', onUnreadUpdate);
-    return () => socket.off('chat:unread-update', onUnreadUpdate);
+    // Someone just requested to join one of my trips — bump that trip's badge live
+    const onJoinRequest = ({ tripId }) => {
+      setJoinRequestCounts(prev => ({ ...prev, [tripId]: (prev[tripId] ?? 0) + 1 }));
+    };
+
+    socket.on('chat:unread-update',  onUnreadUpdate);
+    socket.on('trip:join-request',   onJoinRequest);
+    return () => {
+      socket.off('chat:unread-update', onUnreadUpdate);
+      socket.off('trip:join-request',  onJoinRequest);
+    };
   }, [user?.userId]);
 
   // Accept or decline a trip invitation
@@ -184,7 +201,8 @@ function TripsPage() {
               <TripCard key={trip.tripId} trip={trip} resort={resort}
                 onDelete={handleDeleteTrip}
                 creator={{ firstName: user.firstName, lastName: user.lastName }}
-                unreadCount={unreadCounts[trip.tripId] ?? 0} />
+                unreadCount={unreadCounts[trip.tripId] ?? 0}
+                joinRequestCount={joinRequestCounts[trip.tripId] ?? 0} />
             ))}
           </div>
         </section>

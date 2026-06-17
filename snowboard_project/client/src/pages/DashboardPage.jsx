@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getDashboard, getStoredUser } from '../services/api';
+import { getSocket } from '../services/socket';
 import TripCard from '../components/TripCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -380,6 +381,21 @@ function DashboardPage() {
     return () => { cancelled = true; };
   }, [user?.userId]);
 
+  // Live refresh of "Requires Attention" when someone requests to join one of my trips
+  useEffect(() => {
+    if (!user?.userId) return;
+    const sock = getSocket();
+    if (!sock) return;
+
+    const onJoinReq = () => {
+      getDashboard()
+        .then(data => setDashboard(data))
+        .catch(() => {});
+    };
+    sock.on('trip:join-request', onJoinReq);
+    return () => sock.off('trip:join-request', onJoinReq);
+  }, [user?.userId]);
+
   if (loading) {
     return (
       <div className="page-content">
@@ -397,6 +413,10 @@ function DashboardPage() {
   }
 
   const d = dashboard ?? {};
+  const joinRequestByTrip = {};
+  for (const item of d.attentionItems ?? []) {
+    if (item.type === 'join_request') joinRequestByTrip[item.tripId] = item.count ?? 1;
+  }
 
   return (
     <div className="page-content">
@@ -462,7 +482,11 @@ function DashboardPage() {
         ) : (
           <div className="grid-3">
             {d.recentTrips.map(({ resort, unreadCount, creator, ...trip }) => (
-              <TripCard key={trip.tripId} trip={trip} resort={resort} unreadCount={unreadCount} creator={creator} />
+              <TripCard
+                key={trip.tripId} trip={trip} resort={resort}
+                unreadCount={unreadCount} creator={creator}
+                joinRequestCount={joinRequestByTrip[trip.tripId] ?? 0}
+              />
             ))}
           </div>
         )}

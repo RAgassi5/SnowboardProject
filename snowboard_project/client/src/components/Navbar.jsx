@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { getStoredUser, getReceivedRequests } from '../services/api';
+import { getStoredUser, getReceivedRequests, getDashboard } from '../services/api';
 import { getSocket } from '../services/socket';
 import ProfilePanel from './ProfilePanel';
 
@@ -28,6 +28,7 @@ function Navbar() {
   const [scrolled,     setScrolled]     = useState(false);
   const [profileOpen,  setProfileOpen]  = useState(false);
   const [requestCount, setRequestCount] = useState(0);
+  const [joinRequestCount, setJoinRequestCount] = useState(0);
 
   // Re-read user on each navigation (handles login state change)
   useEffect(() => {
@@ -51,9 +52,21 @@ function Navbar() {
     const u = getStoredUser();
     if (!u?.userId) return;
 
+    const refreshJoinRequests = () => {
+      getDashboard()
+        .then(d => {
+          const total = (d?.attentionItems ?? [])
+            .filter(item => item.type === 'join_request')
+            .reduce((sum, item) => sum + (item.count ?? 1), 0);
+          setJoinRequestCount(total);
+        })
+        .catch(() => {});
+    };
+
     getReceivedRequests(u.userId)
       .then(reqs => setRequestCount(reqs?.length ?? 0))
       .catch(() => {});
+    refreshJoinRequests();
 
     const sock = getSocket();
     if (!sock) return;
@@ -63,8 +76,14 @@ function Navbar() {
         .then(reqs => setRequestCount(reqs?.length ?? 0))
         .catch(() => {});
     };
+    const onJoinReq = () => refreshJoinRequests();
+
     sock.on('friend:request', onFriendReq);
-    return () => sock.off('friend:request', onFriendReq);
+    sock.on('trip:join-request', onJoinReq);
+    return () => {
+      sock.off('friend:request', onFriendReq);
+      sock.off('trip:join-request', onJoinReq);
+    };
   }, [location]); // re-check when user navigates (catches login/logout transitions)
 
   const handleLogout = () => {
@@ -101,6 +120,11 @@ function Navbar() {
               >
                 <span style={styles.linkIcon} aria-hidden="true">{icon}</span>
                 {label}
+                {to === '/trips' && joinRequestCount > 0 && (
+                  <span style={styles.mobileBadge} aria-label={`${joinRequestCount} pending trip join requests`}>
+                    {joinRequestCount > 9 ? '9+' : joinRequestCount}
+                  </span>
+                )}
               </NavLink>
             </li>
           ))}
@@ -116,7 +140,7 @@ function Navbar() {
               aria-label="Open profile panel"
               title={`${user.firstName} ${user.lastName}`}
             >
-              {/* Badge */}
+              {/* Badge — friend requests only (trip join requests live on My Trips / trip cards, not here) */}
               {requestCount > 0 && (
                 <span style={styles.avatarBadge} aria-label={`${requestCount} friend requests`}>
                   {requestCount > 9 ? '9+' : requestCount}
@@ -179,6 +203,9 @@ function Navbar() {
                   >
                     <span aria-hidden="true">{icon}</span>
                     {label}
+                    {to === '/trips' && joinRequestCount > 0 && (
+                      <span style={styles.mobileBadge}>{joinRequestCount}</span>
+                    )}
                   </NavLink>
                 </li>
               ))}

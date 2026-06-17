@@ -246,7 +246,7 @@ export const recommendResorts = (payload, role) =>
  * POST /gear-recommendation
  * Requires x-user-role header (any valid role).
  * Payload: { resortId, skillLevel, sportType }
- * Returns { resortId, resortName, suggestedGear, warning? }
+ * Returns { resortId, resortName, suggestedGear, aiGenerated, warning? }
  */
 export const getGearRecommendation = (payload, role) =>
   request('/gear-recommendation', {
@@ -271,7 +271,7 @@ export const getResortSummary = (payload) =>
  * POST /resort-assistant
  * Requires x-user-role header (any valid role).
  * Payload: { resortId, locationType, sportType }
- * Returns { resortId, resortName, generalTip, inResortSpots }
+ * Returns { resortId, resortName, generalTip, aiGenerated, inResortSpots }
  */
 export const getResortAssistant = (payload, role) =>
   request('/resort-assistant', {

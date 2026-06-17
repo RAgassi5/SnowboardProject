@@ -2,11 +2,11 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 
 const FOOTER_LINKS = [
-  { to: '/dashboard',       label: 'Dashboard' },
-  { to: '/resorts',         label: 'Resorts' },
-  { to: '/recommendations', label: 'Recommendations' },
-  { to: '/gear',            label: 'Gear' },
-  { to: '/settings',        label: 'Settings' },
+  { to: '/dashboard', label: 'Dashboard' },
+  { to: '/resorts',   label: 'Resorts' },
+  { to: '/discover',  label: 'Discover' },
+  { to: '/friends',   label: 'Friends' },
+  { to: '/settings',  label: 'Settings' },
 ];
 
 function Footer() {
@@ -29,7 +29,7 @@ function Footer() {
           </p>
           <div style={styles.techBadge}>
             <span style={styles.dot} />
-            Built with React + Node.js / Express
+            React · Node.js / Express · MySQL + Sequelize
           </div>
         </div>
 
@@ -52,12 +52,15 @@ function Footer() {
           <h3 style={styles.colHeading}>About</h3>
           <p style={styles.infoText}>
             SnowTrip Planner is a fullstack university project (BGU Web Development).
-            Backend powered by Express with in-memory data. Frontend built with React Router.
+            React frontend, Node.js + Express backend, MySQL database via Sequelize ORM,
+            Socket.IO real-time chat and presence, and Groq AI-powered gear and resort
+            recommendations — built around real resort and trip data with social trip planning.
           </p>
           <div style={styles.stats}>
-            <StatPill icon="⛷️" label="5 Resorts" />
-            <StatPill icon="🌍" label="4 Countries" />
+            <StatPill icon="⛷️" label="20 Resorts" />
+            <StatPill icon="🌍" label="7 Countries" />
             <StatPill icon="🎯" label="AI Picks" />
+            <StatPill icon="💬" label="Live Chat" />
           </div>
         </div>
       </div>

@@ -21,8 +21,9 @@ const DIFFICULTY_LABELS = {
  *   trip       {object}    — trip object { tripId, userId, resortId, startDate, endDate }
  *   resort     {object}    — enriched resort object (may be null if not loaded yet)
  *   onDelete   {function}  — optional; called with (tripId) after user confirms delete
+ *   joinRequestCount {number} — optional; pending join requests for this trip (creator view only)
  */
-function TripCard({ trip, resort, onDelete, unreadCount = 0, creator = null }) {
+function TripCard({ trip, resort, onDelete, unreadCount = 0, creator = null, joinRequestCount = 0 }) {
   const navigate = useNavigate();
   const [showConfirm, setShowConfirm] = useState(false);
   const [deleting,    setDeleting]    = useState(false);
@@ -67,7 +68,14 @@ function TripCard({ trip, resort, onDelete, unreadCount = 0, creator = null }) {
         {/* Header */}
         <div style={styles.header}>
           <div>
-            <h3 style={styles.name}>{resortName}</h3>
+            <h3 style={styles.name}>
+              {resortName}
+              {joinRequestCount > 0 && (
+                <span style={styles.joinRequestBadge} aria-label={`${joinRequestCount} pending join request${joinRequestCount > 1 ? 's' : ''}`}>
+                  🙋 {joinRequestCount > 9 ? '9+' : joinRequestCount}
+                </span>
+              )}
+            </h3>
             {country && (
               <div style={styles.country}>
                 <span aria-label={`Country: ${country}`}>{flag}</span>
@@ -237,6 +245,17 @@ const styles = {
     border: '1px solid rgba(245,158,11,0.2)',
   },
   ctaRow: { display: 'flex', gap: '0.5rem', marginTop: 'auto' },
+  joinRequestBadge: {
+    display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
+    marginLeft: '0.5rem',
+    padding: '0.1rem 0.45rem',
+    borderRadius: 'var(--radius-full)',
+    background: 'rgba(245,158,11,0.15)',
+    color: '#fbbf24',
+    border: '1px solid rgba(245,158,11,0.35)',
+    fontSize: '0.68rem', fontWeight: 700,
+    verticalAlign: 'middle',
+  },
   unreadBadge: {
     minWidth: 20, height: 20,
     borderRadius: 'var(--radius-full)',

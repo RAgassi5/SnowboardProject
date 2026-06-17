@@ -128,6 +128,13 @@ function GearAdvisorModal({ resortId, resortName }) {
 
               {!loading && result && (
                 <>
+                  {/* AI unavailable notice */}
+                  {result.aiGenerated === false && (
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                      ℹ️ AI advisor unavailable right now — showing standard recommendations for your level.
+                    </p>
+                  )}
+
                   {/* Board warning */}
                   {result.warning && (
                     <div className="alert alert-warning" style={{ marginBottom: '1rem' }}>

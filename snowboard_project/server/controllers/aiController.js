@@ -1,8 +1,8 @@
 'use strict';
 const { Resort, ResortLocation, GearChatMessage } = require('../db');
-const { VALID_SKILL_LEVELS, SKILL_LEVEL_LABELS, DIFFICULTY_LABELS } = require('../models/skillLevels');
-const { GEAR_MAP }             = require('../models/gearRecommendations');
-const { LOCATION_SUGGESTIONS } = require('../models/locationSuggestions');
+const { VALID_SKILL_LEVELS, SKILL_LEVEL_LABELS, DIFFICULTY_LABELS } = require('../constants/skillLevels');
+const { GEAR_MAP }             = require('../constants/gearRecommendations');
+const { LOCATION_SUGGESTIONS } = require('../constants/locationSuggestions');
 const { chat, chatWithHistory } = require('../utils/llm');
 
 const VALID_SPORT_TYPES = ['ski', 'snowboard'];
@@ -166,6 +166,7 @@ const gearRecommendation = async (req, res, next) => {
     let warning       = (sportType === 'snowboard' && !resort.snowboardFriendly)
       ? `Note: ${resort.name} has long flat cat-tracks between sectors which can be challenging for snowboarders.`
       : null;
+    let aiGenerated = false;
 
     try {
       const system = `You are a ski and snowboard gear expert. Return ONLY a valid JSON object with two keys: "gear" (array of 6–8 specific gear item strings) and "warning" (string or null). Do not use markdown.`;
@@ -178,6 +179,7 @@ List 6–8 specific gear items tailored to this resort and rider. Include a "war
       if (Array.isArray(parsed.gear) && parsed.gear.length >= 4) {
         suggestedGear = parsed.gear;
         if (parsed.warning && typeof parsed.warning === 'string') warning = parsed.warning;
+        aiGenerated = true;
       }
     } catch (_) { /* keep rule-based fallback */ }
 
@@ -191,6 +193,7 @@ List 6–8 specific gear items tailored to this resort and rider. Include a "war
         skillLevel:        skillLevelInt,
         skillLevelLabel:   SKILL_LEVEL_LABELS[skillLevelInt],
         suggestedGear,
+        aiGenerated,
         ...(warning ? { warning } : {}),
       },
       error: null,
@@ -220,7 +223,8 @@ const resortAssistant = async (req, res, next) => {
       where: { resortId: resort.id, type: locationType },
     });
 
-    let generalTip = LOCATION_SUGGESTIONS[locationType][sportType]; // fallback
+    let generalTip  = LOCATION_SUGGESTIONS[locationType][sportType]; // fallback
+    let aiGenerated = false;
     try {
       const locationNames = matchingLocations.length > 0
         ? matchingLocations.map(l => l.name).join(', ')
@@ -229,7 +233,8 @@ const resortAssistant = async (req, res, next) => {
       const user   = `Resort: ${resort.name} (${resort.country}), ${resort.terrainType} terrain, ${resort.elevation}m elevation.
 Location type: ${locationType}s. Known ${locationType}s at this resort: ${locationNames}.
 Write 1–2 sentences of practical ${sportType}-specific advice for visiting ${locationType}s at this resort.`;
-      generalTip = (await chat(system, user, { maxTokens: 150, temperature: 0.6 })).trim();
+      generalTip  = (await chat(system, user, { maxTokens: 150, temperature: 0.6 })).trim();
+      aiGenerated = true;
     } catch (_) { /* keep rule-based fallback */ }
 
     return res.status(200).json({
@@ -240,6 +245,7 @@ Write 1–2 sentences of practical ${sportType}-specific advice for visiting ${l
         sportType,
         locationType,
         generalTip,
+        aiGenerated,
         inResortSpots: matchingLocations.map((l) => ({
           locationId:  l.id,
           name:        l.name,
