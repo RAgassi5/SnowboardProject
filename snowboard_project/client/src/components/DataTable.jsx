@@ -8,8 +8,9 @@ import React from 'react';
  *   data     [object]                 — array of row objects
  *   emptyMessage  string              — shown when data is empty
  *   id       string                  — optional table id
+ *   onRowClick  function             — optional; called with (row) when a row is clicked
  */
-function DataTable({ columns = [], data = [], emptyMessage = 'No data available.', id }) {
+function DataTable({ columns = [], data = [], emptyMessage = 'No data available.', id, onRowClick }) {
   if (data.length === 0) {
     return (
       <div className="empty-state">
@@ -32,7 +33,14 @@ function DataTable({ columns = [], data = [], emptyMessage = 'No data available.
         </thead>
         <tbody>
           {data.map((row, rowIdx) => (
-            <tr key={row.id ?? row.resortId ?? row.userId ?? row.tripId ?? rowIdx}>
+            <tr
+              key={row.id ?? row.resortId ?? row.userId ?? row.tripId ?? rowIdx}
+              onClick={onRowClick ? () => onRowClick(row) : undefined}
+              onKeyDown={onRowClick ? (e) => { if (e.key === 'Enter') onRowClick(row); } : undefined}
+              tabIndex={onRowClick ? 0 : undefined}
+              role={onRowClick ? 'button' : undefined}
+              style={onRowClick ? { cursor: 'pointer' } : undefined}
+            >
               {columns.map((col) => (
                 <td
                   key={col.key}

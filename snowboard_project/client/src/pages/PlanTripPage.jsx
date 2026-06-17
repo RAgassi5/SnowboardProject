@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   recommendResorts, getResortForecast, getResortSummary,
   createTrip, getStoredUser, getStoredRole,
@@ -42,6 +42,10 @@ function PlanTripPage() {
   const user     = getStoredUser();
   const role     = getStoredRole();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // ── Pre-selected resort (arrived from Resort Details "Create Trip" button) ───
+  const [presetResort, setPresetResort] = useState(location.state?.presetResort ?? null);
 
   // ── Form state ──────────────────────────────────────────────────────────────
   const [form, setForm] = useState({
@@ -123,6 +127,20 @@ function PlanTripPage() {
     }
   };
 
+  const handleContinueWithPreset = async (e) => {
+    e.preventDefault();
+    const errs = validate(form);
+    if (Object.keys(errs).length) { setFieldErrors(errs); return; }
+
+    await handleSelectResort({
+      resortId:           presetResort.resortId,
+      resortName:         presetResort.name,
+      country:            presetResort.country,
+      difficultyLevel:    presetResort.difficultyLevel,
+      snowboardFriendly:  presetResort.snowboardFriendly,
+    });
+  };
+
   const handleSaveTrip = async () => {
     if (!selected || !user) return;
     setSaving(true);
@@ -160,7 +178,17 @@ function PlanTripPage() {
           <span style={styles.stepTitle}>Enter Your Trip Details</span>
         </div>
 
-        <form onSubmit={handleGetRecommendations} noValidate id="plan-trip-form">
+        {presetResort && (
+          <div style={styles.presetBanner}>
+            <span>🏔️ Creating a trip for <strong>{presetResort.name}</strong> — fill in your trip details below.</span>
+            <button type="button" id="choose-different-resort-btn" onClick={() => setPresetResort(null)}
+              style={styles.presetBannerLink}>
+              Choose a different resort
+            </button>
+          </div>
+        )}
+
+        <form onSubmit={presetResort ? handleContinueWithPreset : handleGetRecommendations} noValidate id="plan-trip-form">
           <div style={styles.formGrid}>
             {/* Start date */}
             <div className="form-group" style={{ marginBottom: 0 }}>
@@ -264,19 +292,23 @@ function PlanTripPage() {
           <ErrorMessage message={recsError} onDismiss={() => setRecsError('')} />
 
           <button type="submit" id="get-recommendations-btn"
-            className="btn btn-primary" disabled={recsLoading}
+            className="btn btn-primary" disabled={recsLoading || builderLoading}
             style={{ marginTop: '1rem' }}>
-            {recsLoading
-              ? <><span className="spinner spinner-sm" /> Finding your resorts…</>
-              : '🎯 Get Top 3 Recommendations'}
+            {presetResort
+              ? (builderLoading
+                  ? <><span className="spinner spinner-sm" /> Loading {presetResort.name}…</>
+                  : `➡️ Continue with ${presetResort.name}`)
+              : (recsLoading
+                  ? <><span className="spinner spinner-sm" /> Finding your resorts…</>
+                  : '🎯 Get Top 3 Recommendations')}
           </button>
         </form>
       </section>
 
       {/* ── STEP 2: Top 3 recommendations ──────────────────────────────────── */}
-      {recsLoading && <LoadingSpinner message="Analysing resorts for you…" />}
+      {!presetResort && recsLoading && <LoadingSpinner message="Analysing resorts for you…" />}
 
-      {!recsLoading && recommendations && (
+      {!presetResort && !recsLoading && recommendations && (
         <section style={styles.recsSection} aria-label="Resort recommendations">
           <div style={styles.stepLabel}>
             <span style={styles.stepNum}>2</span>
@@ -460,6 +492,20 @@ const styles = {
   formGrid: {
     display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
     gap: '1rem',
+  },
+  presetBanner: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    gap: '1rem', flexWrap: 'wrap',
+    padding: '0.75rem 1rem', marginBottom: '1.25rem',
+    background: 'rgba(79,142,247,0.1)',
+    border: '1px solid rgba(79,142,247,0.25)',
+    borderRadius: 'var(--radius-md)',
+    fontSize: '0.85rem', color: 'var(--text-secondary)',
+  },
+  presetBannerLink: {
+    background: 'none', border: 'none', cursor: 'pointer',
+    color: 'var(--accent-light)', fontSize: '0.82rem', fontWeight: 600,
+    textDecoration: 'underline', padding: 0, flexShrink: 0,
   },
   sportToggle: { display: 'flex', gap: '0.6rem' },
   sportOpt: {

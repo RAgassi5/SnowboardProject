@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { getResorts } from '../services/api';
 import DataTable from '../components/DataTable';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -68,6 +68,7 @@ const COLUMNS = [
 // ── Component ─────────────────────────────────────────────────────────────────
 
 function ResortsPage() {
+  const navigate = useNavigate();
   const [resorts, setResorts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
@@ -185,6 +186,7 @@ function ResortsPage() {
           id="resorts-table"
           columns={sortableColumns}
           data={filtered}
+          onRowClick={(row) => navigate(`/resorts/${row.resortId}`)}
           emptyMessage={
             search
               ? `No resorts match "${search}".`
