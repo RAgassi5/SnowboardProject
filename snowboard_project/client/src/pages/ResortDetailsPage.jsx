@@ -42,12 +42,6 @@ const weatherIcon = (snowfall, precipitation, windMax, tempMax) => {
 const CONFIDENCE_COLOR = { high: '#22c55e', medium: '#4f8ef7', low: '#f59e0b' };
 const CONFIDENCE_BG    = { high: 'rgba(34,197,94,0.12)', medium: 'rgba(79,142,247,0.12)', low: 'rgba(245,158,11,0.12)' };
 
-const isoDaysAgo = (n) => {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().split('T')[0];
-};
-
 // ── Component ─────────────────────────────────────────────────────────────────
 function ResortDetailsPage() {
   const { resortId } = useParams();
@@ -88,17 +82,12 @@ function ResortDetailsPage() {
           .then(data => { if (!cancelled) setLocations(data ?? []); })
           .catch(() => {});
 
-        // Weather — prefer last 3 days, fall back to live forecast, then a note
+        // Weather — upcoming 7-day forecast starting today; graceful note if unavailable
         try {
-          const recent = await getResortForecast(resortId, isoDaysAgo(3), isoDaysAgo(1));
-          if (!cancelled) setForecast(recent);
+          const upcoming = await getResortForecast(resortId);
+          if (!cancelled) setForecast(upcoming);
         } catch (_) {
-          try {
-            const live = await getResortForecast(resortId);
-            if (!cancelled) setForecast(live);
-          } catch (__) {
-            if (!cancelled) setWeatherNote("Weather data isn't available for this resort right now.");
-          }
+          if (!cancelled) setWeatherNote("Weather data isn't available for this resort right now.");
         }
       } catch (err) {
         if (!cancelled) setError(err.message);

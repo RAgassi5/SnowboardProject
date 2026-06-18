@@ -2,71 +2,53 @@
 const { Op } = require('sequelize');
 const { User, Resort, Trip, TripMember, TripMessage, TripReadStatus, FriendRequest } = require('../db');
 const { chat } = require('../utils/llm');
+const { fetchForecast, fetchHistorical, fetchTypical, computeSummary, FORECAST_HORIZON } = require('./resortController');
 
 // ── Weather helper ─────────────────────────────────────────────────────────────
-// Inline subset of resortController weather logic — forecast/archive only;
-// skips the expensive 3-year typical calculation for far-future trips.
-
-const FORECAST_HORIZON_MS = 16 * 24 * 60 * 60 * 1000;
-const OM_DAILY = 'temperature_2m_max,temperature_2m_min,snowfall_sum,wind_speed_10m_max';
+// Thin wrapper around resortController's mode-selection logic (forecast/historical/
+// typical) so the dashboard never drifts out of sync with what Resort/Trip Details show.
 
 async function dashboardWeather(resort, startDate, endDate) {
   const lat = resort?.latitude  != null ? parseFloat(resort.latitude)  : null;
   const lng = resort?.longitude != null ? parseFloat(resort.longitude) : null;
-  if (!lat || !lng) return null;
+  if (lat == null || lng == null) return null;
 
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const s = startDate ? new Date(startDate) : null;
-  const e = endDate   ? new Date(endDate)   : null;
+  const resortForWeather = { name: resort.name, latitude: lat, longitude: lng };
 
-  if (s && s > new Date(Date.now() + FORECAST_HORIZON_MS)) return null; // too far ahead
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 4000);
 
   try {
-    let url, confidence;
-    if (!s || !e) {
-      url = new URL('https://api.open-meteo.com/v1/forecast');
-      url.searchParams.set('forecast_days', '7');
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const horizonDate = new Date(today); horizonDate.setDate(today.getDate() + FORECAST_HORIZON);
+
+    let confidence, days;
+    if (!startDate || !endDate) {
       confidence = 'high';
-    } else if (e < today) {
-      url = new URL('https://archive-api.open-meteo.com/v1/archive');
-      url.searchParams.set('start_date', startDate);
-      url.searchParams.set('end_date', endDate);
-      confidence = 'medium';
+      days = await fetchForecast(resortForWeather, null, null, 7, ac.signal);
     } else {
-      url = new URL('https://api.open-meteo.com/v1/forecast');
-      const horizon = new Date(Date.now() + FORECAST_HORIZON_MS);
-      url.searchParams.set('start_date', startDate);
-      url.searchParams.set('end_date', e < horizon ? endDate : horizon.toISOString().split('T')[0]);
-      confidence = 'high';
+      const s = new Date(startDate), e = new Date(endDate);
+      if (e < today) {
+        confidence = 'medium';
+        days = await fetchHistorical(resortForWeather, startDate, endDate, ac.signal);
+      } else if (s <= horizonDate) {
+        confidence = 'high';
+        days = e > horizonDate
+          ? await fetchForecast(resortForWeather, startDate, horizonDate.toISOString().split('T')[0], 7, ac.signal)
+          : await fetchForecast(resortForWeather, startDate, endDate, 7, ac.signal);
+      } else {
+        confidence = 'low';
+        days = await fetchTypical(resortForWeather, startDate, endDate, ac.signal);
+      }
     }
-    url.searchParams.set('latitude',  lat);
-    url.searchParams.set('longitude', lng);
-    url.searchParams.set('daily',     OM_DAILY);
-    url.searchParams.set('timezone',  'auto');
 
-    const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), 4000);
-    let resp;
-    try {
-      resp = await fetch(url.toString(), { signal: ac.signal });
-    } finally {
-      clearTimeout(timer);
-    }
-    if (!resp.ok) return null;
-    const { daily } = await resp.json();
-    if (!daily?.time?.length) return null;
-
-    const avg = arr => { const v = arr.filter(x => x != null); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
-    const r1  = v => v != null ? Math.round(v * 10) / 10 : null;
-    return {
-      avgTempMax:    r1(avg(daily.temperature_2m_max)),
-      avgTempMin:    r1(avg(daily.temperature_2m_min)),
-      totalSnowfall: r1((daily.snowfall_sum ?? []).filter(v => v != null).reduce((s, v) => s + v, 0)),
-      avgWindMax:    r1(avg(daily.wind_speed_10m_max)),
-      confidence,
-    };
-  } catch {
+    if (!days?.length) return null;
+    return { ...computeSummary(days), confidence };
+  } catch (err) {
+    console.error(`[dashboard] weather lookup failed for resort "${resort?.name}" (${startDate}–${endDate}):`, err.message);
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -257,7 +239,6 @@ const getDashboard = async (req, res, next) => {
     const [
       pendingJoinsResult,
       unreadResult,
-      nextWeatherResult,
       conditionsResult,
       nextMemberCountResult,
       activityResult,
@@ -273,12 +254,17 @@ const getDashboard = async (req, res, next) => {
           })
         : Promise.resolve([]),
       computeUnreadCounts(userId, allTripIds),
-      nextTripRaw?.resort
-        ? dashboardWeather(nextTripRaw.resort, nextTripRaw.startDate, nextTripRaw.endDate)
-        : Promise.resolve(null),
-      Promise.all(upcomingFor3.map(t =>
-        t.resort ? dashboardWeather(t.resort, t.startDate, t.endDate) : Promise.resolve(null)
-      )),
+      // Sequential, not parallel — keeps concurrent Open-Meteo archive requests low enough
+      // to avoid bursts tripping its rate limit (worst case: 3 trips x typical mode).
+      // upcomingFor3[0] is always the same trip as nextTripRaw, so this single pass also
+      // covers the "next trip" weather — no need for a second, duplicate lookup.
+      (async () => {
+        const results = [];
+        for (const t of upcomingFor3) {
+          results.push(t.resort ? await dashboardWeather(t.resort, t.startDate, t.endDate) : null);
+        }
+        return results;
+      })(),
       nextTripRaw
         ? TripMember.count({ where: { tripId: nextTripRaw.tripId, status: 'approved' } })
         : Promise.resolve(0),
@@ -288,8 +274,8 @@ const getDashboard = async (req, res, next) => {
 
     const pendingJoins      = pendingJoinsResult.status      === 'fulfilled' ? pendingJoinsResult.value      : [];
     const unreadMap         = unreadResult.status             === 'fulfilled' ? unreadResult.value             : {};
-    const nextWeather       = nextWeatherResult.status        === 'fulfilled' ? nextWeatherResult.value        : null;
     const conditionsWeather = conditionsResult.status         === 'fulfilled' ? conditionsResult.value         : upcomingFor3.map(() => null);
+    const nextWeather       = conditionsWeather[0] ?? null;
     const nextMemberCount   = nextMemberCountResult.status    === 'fulfilled' ? nextMemberCountResult.value    : 0;
     const recentActivity    = activityResult.status           === 'fulfilled' ? activityResult.value           : [];
     const spotlight         = spotlightResult.status          === 'fulfilled' ? spotlightResult.value          : null;
