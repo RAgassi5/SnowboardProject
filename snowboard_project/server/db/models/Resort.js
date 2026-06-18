@@ -41,6 +41,10 @@ module.exports = (sequelize) => {
     longitude: {
       type: DataTypes.DECIMAL(10, 7),
       allowNull: true
+    },
+    imageUrl: {
+      type: DataTypes.STRING(500),
+      allowNull: true
     }
   }, {
     tableName: 'resorts',

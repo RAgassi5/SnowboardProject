@@ -143,7 +143,8 @@ function fmtResort(r) {
     difficultyLevel:   r.difficultyLevel,
     snowboardFriendly: r.snowboardFriendly,
     latitude:          r.latitude  != null ? parseFloat(r.latitude)  : null,
-    longitude:         r.longitude != null ? parseFloat(r.longitude) : null
+    longitude:         r.longitude != null ? parseFloat(r.longitude) : null,
+    imageUrl:          r.imageUrl ?? null
   };
 }
 

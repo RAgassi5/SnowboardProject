@@ -21,11 +21,11 @@ const DIFFICULTY_LABELS = {
 };
 
 const LOCATION_TYPE_META = {
-  lift:       { label: 'Lifts',        icon: '🚡' },
-  slope:      { label: 'Slopes',       icon: '⛷️' },
-  restaurant: { label: 'Restaurants',  icon: '🍽️' },
-  park:       { label: 'Parks',        icon: '🏂' },
-  rental:     { label: 'Rental Shops', icon: '🎿' },
+  lift:       { label: 'Lifts',        icon: '🚡', color: '#4f8ef7' },
+  slope:      { label: 'Slopes',       icon: '⛷️', color: '#38d9c0' },
+  restaurant: { label: 'Restaurants',  icon: '🍽️', color: '#f59e0b' },
+  park:       { label: 'Parks',        icon: '🏂', color: '#ec4899' },
+  rental:     { label: 'Rental Shops', icon: '🎿', color: '#22c55e' },
 };
 
 const weatherIcon = (snowfall, precipitation, windMax, tempMax) => {
@@ -136,44 +136,64 @@ function ResortDetailsPage() {
     return acc;
   }, {});
 
+  const hasMetaStrip = Boolean(resort.terrainType) || (resort.latitude != null && resort.longitude != null);
+
   return (
-    <div className="page-content">
-      <div className="page-header">
-        <div>
-          <h1>{flag} {resort.name}</h1>
-          <p>{resort.country}</p>
+    <div className="page-content" style={{ maxWidth: 1320 }}>
+
+      {/* ── Hero ─────────────────────────────────────────────────────────────── */}
+      <div style={styles.hero}>
+        {resort.imageUrl
+          ? <img src={resort.imageUrl} alt={resort.name} loading="eager" style={styles.heroImage} />
+          : <div style={styles.heroFallbackBg} aria-hidden="true" />}
+
+        <div style={styles.heroOverlay}>
+          <div>
+            <Link to="/resorts" className="btn btn-secondary" id="resort-details-back-btn">
+              ← Back to Resorts
+            </Link>
+          </div>
+
+          <div>
+            <h1 style={styles.heroName}>{flag} {resort.name}</h1>
+            <div style={styles.heroBadges}>
+              <span style={styles.heroBadge}>{flag} {resort.country}</span>
+              <span style={{ ...styles.heroBadge, color: dColor, borderColor: dColor }}>
+                ⬛ {resort.difficultyLevel} — {dLabel}
+              </span>
+              {resort.elevation != null && (
+                <span style={styles.heroBadge}>📏 {resort.elevation.toLocaleString()} m</span>
+              )}
+              <span style={styles.heroBadge}>
+                {resort.snowboardFriendly ? '🏂 Board-Friendly' : '⚠️ Has cat-tracks'}
+              </span>
+            </div>
+            <button id="create-trip-for-resort-btn" className="btn btn-primary" style={styles.heroCta} onClick={handleCreateTrip}>
+              🎯 Create Trip for This Resort
+            </button>
+          </div>
         </div>
-        <Link to="/resorts" className="btn btn-secondary" id="resort-details-back-btn">
-          ← Back to Resorts
-        </Link>
       </div>
+
+      {/* ── Compact metadata strip ───────────────────────────────────────────── */}
+      {hasMetaStrip && (
+        <div style={styles.metaStrip}>
+          {resort.terrainType && (
+            <span style={styles.metaItem}>
+              🏔️ Terrain: <strong>{resort.terrainType.charAt(0).toUpperCase() + resort.terrainType.slice(1)}</strong>
+            </span>
+          )}
+          {(resort.latitude != null && resort.longitude != null) && (
+            <span style={styles.metaItem}>
+              📍 Coordinates: <strong>{resort.latitude.toFixed(2)}, {resort.longitude.toFixed(2)}</strong>
+            </span>
+          )}
+        </div>
+      )}
 
       <div style={styles.grid}>
 
-        {/* Overview */}
-        <div className="card">
-          <h3 style={styles.cardTitle}>Overview</h3>
-          <div style={styles.overviewGrid}>
-            <OverviewItem icon="🌍" label="Country" value={resort.country} />
-            {(resort.latitude != null && resort.longitude != null) && (
-              <OverviewItem icon="📍" label="Coordinates"
-                value={`${resort.latitude.toFixed(2)}, ${resort.longitude.toFixed(2)}`} />
-            )}
-            {resort.elevation != null && (
-              <OverviewItem icon="📏" label="Elevation" value={`${resort.elevation.toLocaleString()} m`} />
-            )}
-            {resort.terrainType && (
-              <OverviewItem icon="🏔️" label="Terrain"
-                value={resort.terrainType.charAt(0).toUpperCase() + resort.terrainType.slice(1)} />
-            )}
-            <OverviewItem icon="⬛" label="Difficulty"
-              value={<span style={{ color: dColor }}>{resort.difficultyLevel} — {dLabel}</span>} />
-            <OverviewItem icon={resort.snowboardFriendly ? '✅' : '⚠️'} label="Board-Friendly"
-              value={resort.snowboardFriendly ? 'Yes' : 'Has cat-tracks'} />
-          </div>
-        </div>
-
-        {/* AI suitability summary */}
+        {/* Section 1 — AI suitability summary */}
         {summary && (
           <div className="card">
             <h3 style={styles.cardTitle}>🤖 AI Suitability Summary</h3>
@@ -181,10 +201,10 @@ function ResortDetailsPage() {
           </div>
         )}
 
-        {/* Weather */}
+        {/* Section 2 — Weekly weather forecast */}
         <div className="card" style={{ gridColumn: '1 / -1' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-            <h3 style={{ ...styles.cardTitle, marginBottom: 0 }}>🌤️ Weather</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+            <h3 style={{ ...styles.cardTitle, marginBottom: 0 }}>📅 Weekly Weather Forecast</h3>
             {forecast && (
               <span style={{
                 fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.65rem',
@@ -227,16 +247,17 @@ function ResortDetailsPage() {
           )}
         </div>
 
-        {/* In-resort locations */}
+        {/* Section 3 — In-resort locations, one distinct card per category */}
         {Object.keys(groupedLocations).length > 0 && (
-          <div className="card" style={{ gridColumn: '1 / -1' }}>
-            <h3 style={styles.cardTitle}>📍 In-Resort Locations</h3>
-            <div style={styles.locationGroups}>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <h3 style={styles.sectionHeading}>📍 In-Resort Locations</h3>
+            <div style={styles.locationCardsGrid}>
               {Object.entries(groupedLocations).map(([type, locs]) => {
-                const meta = LOCATION_TYPE_META[type] ?? { label: type, icon: '📌' };
+                const meta = LOCATION_TYPE_META[type] ?? { label: type, icon: '📌', color: '#4f8ef7' };
                 return (
-                  <div key={type}>
-                    <div style={styles.locationGroupTitle}>{meta.icon} {meta.label}</div>
+                  <div key={type} className="card" style={styles.locationCard}>
+                    <div style={{ ...styles.locationCardAccent, background: meta.color }} aria-hidden="true" />
+                    <h4 style={{ ...styles.locationCardTitle, color: meta.color }}>{meta.icon} {meta.label}</h4>
                     <ul style={styles.locationList}>
                       {locs.map(loc => (
                         <li key={loc.locationId} style={styles.locationItem}>
@@ -252,31 +273,6 @@ function ResortDetailsPage() {
           </div>
         )}
 
-        {/* Create trip CTA */}
-        <div className="card" style={{ gridColumn: '1 / -1' }}>
-          <h3 style={styles.cardTitle}>🎯 Plan a Trip Here</h3>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-            Start a trip for <strong style={{ color: 'var(--text-primary)' }}>{resort.name}</strong> — you'll
-            choose your dates, sport, skill level, and privacy on the next step.
-          </p>
-          <button id="create-trip-for-resort-btn" className="btn btn-primary" onClick={handleCreateTrip}>
-            🎯 Create Trip for This Resort
-          </button>
-        </div>
-
-      </div>
-    </div>
-  );
-}
-
-// ── Sub-components ─────────────────────────────────────────────────────────────
-function OverviewItem({ icon, label, value }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase',
-        letterSpacing: '0.07em', fontWeight: 600 }}>{label}</div>
-      <div style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-        {icon} {value}
       </div>
     </div>
   );
@@ -284,20 +280,79 @@ function OverviewItem({ icon, label, value }) {
 
 // ── Styles ─────────────────────────────────────────────────────────────────────
 const styles = {
+  hero: {
+    position: 'relative',
+    height: 380,
+    borderRadius: 'var(--radius-lg)',
+    overflow: 'hidden',
+    marginBottom: '1.5rem',
+    boxShadow: 'var(--shadow-card)',
+  },
+  heroImage: {
+    position: 'absolute', inset: 0,
+    width: '100%', height: '100%',
+    objectFit: 'cover',
+    objectPosition: 'center center',
+  },
+  heroFallbackBg: {
+    position: 'absolute', inset: 0,
+    background: 'var(--grad-hero)',
+  },
+  heroOverlay: {
+    position: 'absolute', inset: 0,
+    display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+    background: 'linear-gradient(to top, rgba(8,13,28,0.95) 0%, rgba(8,13,28,0.65) 45%, rgba(8,13,28,0.1) 100%)',
+    padding: 'var(--space-xl)',
+  },
+  heroName: {
+    fontSize: '2.4rem',
+    fontWeight: 800,
+    fontFamily: 'var(--font-display)',
+    color: 'var(--text-primary)',
+    marginBottom: '0.6rem',
+    lineHeight: 1.1,
+  },
+  heroBadges: {
+    display: 'flex', flexWrap: 'wrap', gap: '0.6rem',
+    marginBottom: '1.25rem',
+  },
+  heroBadge: {
+    background: 'rgba(255,255,255,0.08)',
+    border: '1px solid rgba(255,255,255,0.18)',
+    borderRadius: 'var(--radius-full)',
+    padding: '0.35rem 0.85rem',
+    fontSize: '0.85rem',
+    fontWeight: 600,
+    color: 'var(--text-primary)',
+  },
+  heroCta: {
+    fontSize: '1rem',
+    padding: '0.8rem 1.75rem',
+  },
+  metaStrip: {
+    display: 'flex', flexWrap: 'wrap', gap: '1.75rem',
+    marginBottom: '2rem',
+    fontSize: '0.85rem',
+    color: 'var(--text-secondary)',
+  },
+  metaItem: {
+    display: 'flex', alignItems: 'center', gap: '0.4rem',
+  },
   grid: {
-    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-    gap: '1.25rem',
+    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+    gap: 'var(--space-xl)',
   },
   cardTitle: {
-    fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)',
+    fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)',
     marginBottom: '1rem',
   },
-  overviewGrid: {
-    display: 'grid', gridTemplateColumns: '1fr 1fr',
-    gap: '0.85rem',
+  sectionHeading: {
+    fontSize: '1.2rem', fontWeight: 700, fontFamily: 'var(--font-display)',
+    color: 'var(--text-primary)',
+    marginBottom: '1.1rem',
   },
   summaryText: {
-    fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.7,
+    fontSize: '0.92rem', color: 'var(--text-secondary)', lineHeight: 1.7,
   },
   forecastSummary: {
     display: 'flex', flexWrap: 'wrap', gap: '1rem',
@@ -310,30 +365,40 @@ const styles = {
   },
   forecastDay: {
     display: 'flex', flexDirection: 'column', alignItems: 'center',
-    padding: '0.85rem 1rem',
+    padding: '1rem 1.1rem',
     background: 'rgba(255,255,255,0.03)',
     border: '1px solid var(--border-subtle)',
     borderRadius: 'var(--radius-md)',
-    minWidth: 120, gap: '0.3rem',
-    flex: '1 1 120px',
+    minWidth: 135, gap: '0.35rem',
+    flex: '1 1 135px',
   },
-  forecastIcon: { fontSize: '1.8rem', marginBottom: '0.2rem' },
-  forecastDate: { fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 },
-  forecastStat: { fontSize: '0.82rem', color: 'var(--text-primary)', fontWeight: 500 },
-  locationGroups: {
-    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-    gap: '1.25rem',
+  forecastIcon: { fontSize: '1.9rem', marginBottom: '0.2rem' },
+  forecastDate: { fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 600 },
+  forecastStat: { fontSize: '0.84rem', color: 'var(--text-primary)', fontWeight: 500 },
+  locationCardsGrid: {
+    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+    gap: 'var(--space-lg)',
   },
-  locationGroupTitle: {
-    fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)',
-    marginBottom: '0.5rem',
+  locationCard: {
+    position: 'relative',
+    overflow: 'hidden',
+    paddingTop: '1.25rem',
+  },
+  locationCardAccent: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    height: '3px',
+  },
+  locationCardTitle: {
+    fontSize: '0.95rem', fontWeight: 700,
+    marginBottom: '0.75rem',
   },
   locationList: {
     listStyle: 'none', padding: 0, margin: 0,
-    display: 'flex', flexDirection: 'column', gap: '0.4rem',
+    display: 'flex', flexDirection: 'column', gap: '0.5rem',
   },
   locationItem: {
-    fontSize: '0.82rem', color: 'var(--text-secondary)',
+    fontSize: '0.85rem', color: 'var(--text-secondary)',
   },
   locationDesc: {
     color: 'var(--text-muted)',
