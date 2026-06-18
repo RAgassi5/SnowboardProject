@@ -6,6 +6,7 @@ import {
 } from '../services/api';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
+import ResortLocationMap from '../components/ResortLocationMap';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const COUNTRY_FLAGS = {
@@ -200,6 +201,9 @@ function ResortDetailsPage() {
             <p style={styles.summaryText}>{summary.summary}</p>
           </div>
         )}
+
+        {/* Section 1b — Resort location map */}
+        <ResortLocationMap resort={resort} />
 
         {/* Section 2 — Weekly weather forecast */}
         <div className="card" style={{ gridColumn: '1 / -1' }}>

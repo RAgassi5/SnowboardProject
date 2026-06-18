@@ -412,6 +412,23 @@ p {
   max-width: 300px;
 }
 
+/* ── Leaflet popup — match dark theme ──────────────────────────────────── */
+.leaflet-popup-content-wrapper {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+}
+
+.leaflet-popup-tip {
+  background: var(--bg-card);
+}
+
+.leaflet-popup-content {
+  margin: 0.6rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 /* ── Grid Layouts ───────────────────────────────────────────────────────── */
 .grid-3 {
   display: grid;
