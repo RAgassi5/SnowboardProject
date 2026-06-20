@@ -21,8 +21,9 @@ const DIFFICULTY_LABELS = {
  *   trip       {object}    — trip object { tripId, userId, resortId, startDate, endDate }
  *   resort     {object}    — enriched resort object (may be null if not loaded yet)
  *   onDelete   {function}  — optional; called with (tripId) after user confirms delete
+ *   joinRequestCount {number} — optional; pending join requests for this trip (creator view only)
  */
-function TripCard({ trip, resort, onDelete }) {
+function TripCard({ trip, resort, onDelete, unreadCount = 0, creator = null, joinRequestCount = 0 }) {
   const navigate = useNavigate();
   const [showConfirm, setShowConfirm] = useState(false);
   const [deleting,    setDeleting]    = useState(false);
@@ -67,7 +68,14 @@ function TripCard({ trip, resort, onDelete }) {
         {/* Header */}
         <div style={styles.header}>
           <div>
-            <h3 style={styles.name}>{resortName}</h3>
+            <h3 style={styles.name}>
+              {resortName}
+              {joinRequestCount > 0 && (
+                <span style={styles.joinRequestBadge} aria-label={`${joinRequestCount} pending join request${joinRequestCount > 1 ? 's' : ''}`}>
+                  🙋 {joinRequestCount > 9 ? '9+' : joinRequestCount}
+                </span>
+              )}
+            </h3>
             {country && (
               <div style={styles.country}>
                 <span aria-label={`Country: ${country}`}>{flag}</span>
@@ -75,9 +83,24 @@ function TripCard({ trip, resort, onDelete }) {
               </div>
             )}
           </div>
-          <div style={styles.nightsBubble} aria-label={`${nights} nights`}>
-            <div style={styles.nightsNum}>{nights}</div>
-            <div style={styles.nightsLabel}>nights</div>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
+            {unreadCount > 0 && (
+              <div style={styles.unreadBadge} aria-label={`${unreadCount} unread messages`}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </div>
+            )}
+            {/* Nights + privacy stacked vertically */}
+            <div style={styles.rightStack}>
+              <div style={styles.nightsBubble} aria-label={`${nights} nights`}>
+                <div style={styles.nightsNum}>{nights}</div>
+                <div style={styles.nightsLabel}>nights</div>
+              </div>
+              {trip.privacy && (
+                <span style={styles.privacyPill}>
+                  {{ public: 'Public', 'friends-only': 'Friends Only', private: 'Private' }[trip.privacy]}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -88,6 +111,13 @@ function TripCard({ trip, resort, onDelete }) {
             {formatDate(trip.startDate)} → {formatDate(trip.endDate)}
           </span>
         </div>
+
+        {/* Creator */}
+        {creator && (
+          <div style={styles.creatorRow}>
+            Created by {creator.firstName} {creator.lastName}
+          </div>
+        )}
 
         {/* Badges */}
         {(dLabel || boardFriendly !== undefined) && (
@@ -215,6 +245,53 @@ const styles = {
     border: '1px solid rgba(245,158,11,0.2)',
   },
   ctaRow: { display: 'flex', gap: '0.5rem', marginTop: 'auto' },
+  joinRequestBadge: {
+    display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
+    marginLeft: '0.5rem',
+    padding: '0.1rem 0.45rem',
+    borderRadius: 'var(--radius-full)',
+    background: 'rgba(245,158,11,0.15)',
+    color: '#fbbf24',
+    border: '1px solid rgba(245,158,11,0.35)',
+    fontSize: '0.68rem', fontWeight: 700,
+    verticalAlign: 'middle',
+  },
+  unreadBadge: {
+    minWidth: 20, height: 20,
+    borderRadius: 'var(--radius-full)',
+    background: '#ef4444',
+    color: '#fff',
+    fontSize: '0.7rem', fontWeight: 700,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: '0 5px',
+    flexShrink: 0,
+    alignSelf: 'flex-start',
+    marginTop: '0.2rem',
+  },
+  rightStack: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.3rem',
+    flexShrink: 0,
+  },
+  privacyPill: {
+    fontSize: '0.58rem',
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.06em',
+    color: 'var(--text-muted)',
+    background: 'rgba(255,255,255,0.05)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 'var(--radius-sm)',
+    padding: '0.15rem 0.45rem',
+    lineHeight: 1,
+    whiteSpace: 'nowrap',
+  },
+  creatorRow: {
+    fontSize: '0.75rem',
+    color: 'var(--text-muted)',
+  },
 };
 
 export default TripCard;

@@ -1,13 +1,12 @@
 # SnowTrip Planner — Backend API
 
-Node.js + Express REST API for the SnowTrip Planner application. Serves resort data, user management, trip planning, AI-powered recommendations, and weather forecasts. All data is held in-memory — no database is required.
+Node.js + Express REST API with Socket.IO real-time layer and Groq LLM AI features. Persists all data to MySQL via Sequelize ORM.
 
 ---
 
 ## Table of Contents
 
-- [Tech Stack](#tech-stack)
-- [Installation and Running](#installation-and-running)
+- [Quick Start](#quick-start)
 - [npm Scripts](#npm-scripts)
 - [Environment Variables](#environment-variables)
 - [Project Structure](#project-structure)
@@ -19,50 +18,56 @@ Node.js + Express REST API for the SnowTrip Planner application. Serves resort d
   - [Users](#users)
   - [Resorts](#resorts)
   - [Trips](#trips)
+  - [Trip Members](#trip-members)
   - [Resort Locations](#resort-locations)
-  - [AI Routes](#ai-routes)
-- [Data Models](#data-models)
-- [HTTP Status Codes and Error Codes](#http-status-codes-and-error-codes)
-- [Troubleshooting](#troubleshooting)
+  - [Social — Friends](#social--friends)
+  - [AI Features](#ai-features)
+  - [Dashboard](#dashboard)
+- [Postman Collection](#postman-collection)
+- [Socket.IO Events](#socketio-events)
+- [Database Models](#database-models)
+- [Error Codes](#error-codes)
+- [Migration Instructions](#migration-instructions)
 
 ---
 
-## Tech Stack
-
-- **Node.js** 18+ (required — uses native `fetch` for weather API calls)
-- **Express** 5.2.1
-- **No database** — all data lives in `models/` as JavaScript arrays
-- **No ORM, no build step** — plain CommonJS modules
-
----
-
-## Installation and Running
+## Quick Start
 
 ```bash
 cd server
 npm install
-npm start
-# → Server running on http://localhost:3000
+cp .env.example .env      # fill in DB credentials + Groq key
+npm run db:migrate        # create tables
+npm run db:seed           # insert demo data
+npm start                 # → http://localhost:3000
 ```
-
-The port is hard-coded to `3000` in `server.js`. Data resets on every restart by design.
 
 ---
 
 ## npm Scripts
 
-| Script | Command | Description |
-|---|---|---|
-| `npm start` | `node server.js` | Start the server |
-| `npm run dev` | `node server.js` | Alias for start (no hot-reload) |
-
-There is no `nodemon` or hot-reload. Restart the server manually after code changes.
+| Script | Description |
+|---|---|
+| `npm start` | Start the server |
+| `npm run db:migrate` | Run all pending Sequelize migrations |
+| `npm run db:seed` | Run all seeders (demo data) |
+| `npm run db:reset` | Undo all migrations → migrate → seed (full reset) |
 
 ---
 
 ## Environment Variables
 
-None required. The backend has no `.env` file and no external service keys.
+```env
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=snowtrip_db
+DB_USER=your_mysql_user
+DB_PASSWORD=your_mysql_password
+
+GROQ_API_KEY=gsk_your_groq_api_key_here
+```
+
+`GROQ_API_KEY` is read only by `utils/llm.js` on the server. It is never sent to the frontend.
 
 ---
 
@@ -70,34 +75,43 @@ None required. The backend has no `.env` file and no external service keys.
 
 ```
 server/
-├── server.js              ← Express app: middleware, CORS, route mounting, error handler
+├── server.js                  ← Express app: middleware, route mounts, error handler
+├── socket.js                  ← Socket.IO: event handlers, online-user tracking
 ├── package.json
-├── controllers/           ← Business logic, one file per resource group
+├── .env                       ← Secrets (gitignored)
+├── .env.example               ← Placeholder template
+├── controllers/
 │   ├── authController.js
 │   ├── userController.js
 │   ├── resortController.js
 │   ├── tripController.js
 │   ├── resortLocationController.js
-│   └── aiController.js
-├── routes/                ← Express Router definitions
+│   ├── aiController.js        ← AI endpoints incl. gear chat (real Groq LLM + rule-based fallback)
+│   ├── friendController.js    ← Friend requests and friendships
+│   ├── tripMemberController.js← Trip discovery, join, approve, leave
+│   └── dashboardController.js ← Aggregated dashboard data for the logged-in user
+├── routes/
 │   ├── authRoutes.js
-│   ├── userRoutes.js
+│   ├── userRoutes.js          ← Also mounts social sub-routes
 │   ├── resortRoutes.js
-│   ├── tripRoutes.js
+│   ├── tripRoutes.js          ← Also mounts discover + member sub-routes
 │   ├── resortLocationRoutes.js
-│   └── aiRoutes.js
-├── models/                ← In-memory data arrays (reset on restart)
-│   ├── users.js
-│   ├── resorts.js
-│   ├── trips.js
-│   ├── resortLocations.js
-│   ├── weatherLogs.js
-│   ├── skillLevels.js
-│   ├── gearRecommendations.js
-│   └── locationSuggestions.js
+│   ├── aiRoutes.js
+│   ├── socialRoutes.js        ← Friend request CRUD
+│   ├── tripMemberRoutes.js    ← Approve / reject / remove members
+│   └── dashboardRoutes.js
+├── db/
+│   ├── index.js               ← Sequelize instance + model registration + associations
+│   ├── config.js              ← Sequelize CLI config (reads .env)
+│   ├── models/                ← Model definitions (User, Resort, Trip, …)
+│   ├── migrations/            ← One migration per table
+│   └── seeders/               ← Demo data seeders
+├── constants/                  ← Static lookup tables (skill levels, AI-fallback gear/location content) — not database data
+├── utils/
+│   └── llm.js                 ← Groq SDK client singleton
 └── middleware/
-    ├── auth.js            ← Role-based access control (reads x-user-role header)
-    └── logger.js          ← HTTP request logger (method, URL, status, duration)
+    ├── auth.js                ← RBAC factory: auth(['user','admin'])
+    └── logger.js              ← HTTP request logger
 ```
 
 ---
@@ -110,7 +124,7 @@ Every endpoint returns the same JSON envelope:
 ```json
 {
   "success": true,
-  "data": { ... },
+  "data": { "...": "..." },
   "error": null
 }
 ```
@@ -135,36 +149,32 @@ Every endpoint returns the same JSON envelope:
 Send both headers on every authenticated request:
 
 ```
-x-user-role: admin
-x-user-id: 1
+x-user-role: user
+x-user-id: 3
 ```
 
-`x-user-role` is checked by the `auth` middleware against the allowed roles for each route. `x-user-id` is used for ownership checks (e.g. a `user` can only delete their own trips).
+`x-user-role` is checked by `middleware/auth.js`. `x-user-id` is used for ownership checks.
 
-| Action | Roles |
+| Action | Required role |
 |---|---|
-| Public read (resorts, forecast, locations) | none required |
-| Login / register | none required |
-| Create trips, get recommendations | user, manager, admin |
+| Public read (resorts, forecast, locations) | none |
+| Login / register | none |
+| Social features, trips, recommendations | user, manager, admin |
 | View all users and trips | manager, admin |
 | Create / edit resorts and locations | manager, admin |
-| Delete any resource | admin only |
+| Delete any resource | admin |
 
 ---
 
 ## Skill Level Scale
 
-All `skillLevel` fields use a **5-point integer scale**:
-
-| Level | Label | Description |
-|---|---|---|
-| `1` | First-Timer | Nursery slopes only |
-| `2` | Novice | Green / Easy Blue runs |
-| `3` | Intermediate | Confident on Red / Blue |
-| `4` | Expert | Advanced / Black Diamonds |
-| `5` | Pro/Freeride | Off-piste / Extreme terrain |
-
-> Send `skillLevel` as an **integer**, not a string.
+| Level | Label |
+|---|---|
+| 1 | First-Timer |
+| 2 | Novice (Green / Easy Blue) |
+| 3 | Intermediate (Confident on Red/Blue) |
+| 4 | Expert (Advanced / Black Diamonds) |
+| 5 | Pro/Freeride (Off-piste / Extreme) |
 
 ---
 
@@ -172,12 +182,10 @@ All `skillLevel` fields use a **5-point integer scale**:
 
 ### Auth
 
-> No `x-user-role` header required.
-
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/auth/register` | Register a new user |
-| POST | `/auth/login` | Login and retrieve user info |
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| POST | `/auth/register` | none | Register a new user |
+| POST | `/auth/login` | none | Login |
 
 **POST /auth/register**
 ```json
@@ -190,59 +198,13 @@ All `skillLevel` fields use a **5-point integer scale**:
   "skillLevel": 3
 }
 ```
-
-Response `201`:
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Registration successful.",
-    "user": {
-      "userId": 6,
-      "firstName": "Jane",
-      "lastName": "Doe",
-      "email": "jane@example.com",
-      "sportType": "snowboard",
-      "skillLevel": 3,
-      "userRole": "user"
-    }
-  },
-  "error": null
-}
-```
+Response `201` — `data: { message, user: { userId, firstName, lastName, email, sportType, skillLevel, userRole } }`
 
 **POST /auth/login**
 ```json
 { "email": "roii@example.com", "password": "password123" }
 ```
-
-Response `200`:
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Login successful.",
-    "user": {
-      "userId": 1,
-      "firstName": "Roii",
-      "lastName": "Agassi",
-      "email": "roii@example.com",
-      "sportType": "snowboard",
-      "skillLevel": 5,
-      "userRole": "admin"
-    }
-  },
-  "error": null
-}
-```
-
-**Demo credentials:**
-
-| Role | Email | Password |
-|---|---|---|
-| Admin | roii@example.com | password123 |
-| Manager | chacha@example.com | password123 |
-| User | lebron@example.com | password123 |
+Response `200` — same shape as register.
 
 ---
 
@@ -250,23 +212,21 @@ Response `200`:
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| GET | `/users` | manager, admin | Get all users |
-| GET | `/users/:id` | manager, admin | Get user by ID |
-| GET | `/users/:id/trips` | user, manager, admin | Get trips for a user |
-| POST | `/users` | manager, admin | Create a user |
-| PUT | `/users/:id` | manager, admin | Update a user |
-| DELETE | `/users/:id` | admin | Delete a user |
+| GET | `/users` | manager, admin | All users |
+| GET | `/users/search?q=<name\|email>` | any | Search users (excludes self) |
+| GET | `/users/:id` | manager, admin | Single user |
+| GET | `/users/:id/trips` | any | User's created trips |
+| GET | `/users/:id/joined-trips` | any | Trips the user has been approved to join |
+| GET | `/users/:id/friends` | any | User's friend list |
+| GET | `/users/:id/friend-requests/received` | any | Incoming pending requests |
+| GET | `/users/:id/friend-requests/sent` | any | Outgoing pending requests |
+| GET | `/users/:id/invitations` | any | Pending trip invitations sent to this user |
+| GET | `/users/:id/unread-counts` | any | Unread chat message counts per trip |
+| POST | `/users` | manager, admin | Create user |
+| PUT | `/users/:id` | manager, admin | Update user |
+| DELETE | `/users/:id` | admin | Delete user |
 
-**POST/PUT body:**
-```json
-{
-  "firstName": "Roii",
-  "lastName": "Agassi",
-  "userRole": "admin"
-}
-```
-
-> `userRole` values: `"admin"`, `"manager"`, `"user"`
+> `GET /users/search` must appear in the route file **before** `GET /users/:id` to avoid Express treating "search" as an id.
 
 ---
 
@@ -274,16 +234,13 @@ Response `200`:
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| GET | `/resorts` | none | Get all resorts |
-| GET | `/resorts?country=Switzerland` | none | Filter by country |
-| GET | `/resorts?difficultyLevel=3` | none | Filter by difficulty |
-| GET | `/resorts/:id` | none | Get resort by ID |
-| GET | `/resorts/:id/locations` | none | Get in-resort locations |
-| GET | `/resorts/:id/locations?type=lift` | none | Filter locations by type |
-| GET | `/resorts/:id/forecast` | none | Get weather forecast |
-| POST | `/resorts` | manager, admin | Create a resort |
-| PUT | `/resorts/:id` | manager, admin | Update a resort |
-| DELETE | `/resorts/:id` | admin | Delete a resort |
+| GET | `/resorts` | none | All resorts (optional `?country=` `?difficultyLevel=`) |
+| GET | `/resorts/:id` | none | Single resort |
+| GET | `/resorts/:id/locations` | none | In-resort POIs (optional `?type=lift\|slope\|…`) |
+| GET | `/resorts/:id/forecast` | none | Weather (optional `?startDate=&endDate=`) |
+| POST | `/resorts` | manager, admin | Create resort |
+| PUT | `/resorts/:id` | manager, admin | Update resort |
+| DELETE | `/resorts/:id` | admin | Delete resort |
 
 **POST/PUT body:**
 ```json
@@ -299,17 +256,12 @@ Response `200`:
 }
 ```
 
-> `terrainType` values: `"groomed"`, `"powder"`, `"park"`, `"mixed"`, `"backcountry"`
+`terrainType` values: `groomed` · `powder` · `park` · `mixed` · `backcountry`
 
-**Seeded resorts:**
-
-| Resort | Country | Level | Snowboard Friendly |
-|---|---|---|---|
-| Zermatt | Switzerland | 4 — Expert | ✅ |
-| Verbier | Switzerland | 5 — Pro/Freeride | ✅ |
-| Les Deux Alpes | France | 3 — Intermediate | ✅ |
-| Mayrhofen | Austria | 3 — Intermediate | ✅ |
-| Livigno | Italy | 2 — Novice | ❌ (long cat-tracks) |
+**Forecast modes** (auto-selected based on dates):
+- `forecast` — trip starts within 16 days (live Open-Meteo forecast)
+- `historical` — trip is in the past (archive API)
+- `typical` — trip is beyond 16 days (3-year average for the same date range)
 
 ---
 
@@ -317,37 +269,61 @@ Response `200`:
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| GET | `/trips` | manager, admin | Get all trips |
-| GET | `/trips/:id` | user, manager, admin | Get trip by ID |
-| POST | `/trips` | user, manager, admin | Create a trip |
-| PUT | `/trips/:id` | user, manager, admin | Update a trip |
-| DELETE | `/trips/:id` | admin | Delete a trip |
+| GET | `/trips` | manager, admin | All trips |
+| GET | `/trips/discover` | any | Public + friends-only trips (excludes own) |
+| GET | `/trips/:id` | any | Single trip |
+| GET | `/trips/:id/members` | any | Members of a trip |
+| POST | `/trips` | any | Create trip |
+| POST | `/trips/:id/join` | any | Request to join a trip |
+| POST | `/trips/:id/invite` | any (trip creator) | Invite a friend to join a trip |
+| PUT | `/trips/:id` | any | Update trip |
+| DELETE | `/trips/:id` | user=own only, admin=any | Delete trip |
 
-**POST/PUT body:**
+> `GET /trips/discover` must appear **before** `GET /trips/:id` in the route file.
+
+**POST /trips body:**
 ```json
 {
   "userId": 1,
   "resortId": 2,
-  "startDate": "2025-02-10",
-  "endDate": "2025-02-15"
+  "startDate": "2026-12-20",
+  "endDate": "2026-12-27",
+  "skillLevel": 3,
+  "sportType": "snowboard",
+  "privacy": "public",
+  "maxMembers": 8
 }
 ```
 
-> Dates must be ISO strings (`YYYY-MM-DD`). `startDate` must be strictly before `endDate`.
+`privacy` values: `public` · `friends-only` · `private`
+
+`maxMembers`: integer or `null` (no limit)
+
+**GET /trips/discover** optional query params: `?sportType=ski` `?skillLevel=3`
+
+---
+
+### Trip Members
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| PUT | `/trip-members/:id/approve` | any | Creator approves a pending request |
+| PUT | `/trip-members/:id/reject` | any | Creator rejects a pending request |
+| DELETE | `/trip-members/:id` | any | Creator removes a member OR member leaves/cancels |
+
+Ownership is enforced server-side via `x-user-id`.
 
 ---
 
 ### Resort Locations
 
-Points of interest within a resort (lifts, slopes, restaurants, parks, rentals).
-
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| GET | `/resort-locations` | manager, admin | Get all locations |
-| GET | `/resort-locations/:id` | user, manager, admin | Get location by ID |
-| POST | `/resort-locations` | manager, admin | Create a location |
-| PUT | `/resort-locations/:id` | manager, admin | Update a location |
-| DELETE | `/resort-locations/:id` | admin | Delete a location |
+| GET | `/resort-locations` | manager, admin | All locations |
+| GET | `/resort-locations/:id` | any | Single location |
+| POST | `/resort-locations` | manager, admin | Create location |
+| PUT | `/resort-locations/:id` | manager, admin | Update location |
+| DELETE | `/resort-locations/:id` | admin | Delete location |
 
 **POST/PUT body:**
 ```json
@@ -359,109 +335,259 @@ Points of interest within a resort (lifts, slopes, restaurants, parks, rentals).
 }
 ```
 
-> `type` values: `"lift"`, `"slope"`, `"restaurant"`, `"park"`, `"rental"`
+`type` values: `lift` · `slope` · `restaurant` · `park` · `rental`
 
 ---
 
-### AI Routes
+### Social — Friends
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| POST | `/resort-summary` | none | AI suitability summary for a resort/skill match |
-| POST | `/recommend-resorts` | user, manager, admin | Top 3 resort recommendations |
-| POST | `/gear-recommendation` | user, manager, admin | Sport-specific gear list |
-| POST | `/resort-assistant` | user, manager, admin | In-resort location tips by sport |
+| POST | `/friend-requests` | any | Send friend request |
+| PUT | `/friend-requests/:id/accept` | any | Accept (receiver only) |
+| PUT | `/friend-requests/:id/reject` | any | Reject (receiver only) |
+| DELETE | `/friendships/:id` | any | Remove a friendship |
+
+**POST /friend-requests body:**
+```json
+{ "receiverId": 3 }
+```
+
+`senderId` is read from the `x-user-id` header — do not pass it in the body.
+
+**Duplicate-request handling:**
+
+| Scenario | Response |
+|---|---|
+| Same direction, pending | `409 FRIEND_REQUEST_ALREADY_EXISTS` |
+| Same direction, rejected (re-request) | `201` — row updated to pending |
+| Same direction, accepted (post-unfriend re-request) | `201` — row updated to pending |
+| Reverse direction already pending | `409 FRIEND_REQUEST_ALREADY_EXISTS` (details include the existing requestId) |
+| Already friends | `409 ALREADY_FRIENDS` |
+| Self-request | `400 VALIDATION_ERROR` |
+
+---
+
+### AI Features
+
+All AI calls happen **on the backend only**. The Groq API key is never sent to the browser. Each endpoint has a rule-based fallback if the LLM is unavailable.
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| POST | `/resort-summary` | none | LLM suitability summary for resort + skill match |
+| POST | `/recommend-resorts` | any | Top-3 scored resorts + LLM explanations |
+| POST | `/gear-recommendation` | any | LLM tailored gear list + terrain warnings |
+| POST | `/resort-assistant` | any | LLM sport-specific tips for a location type |
+| POST | `/gear-chat` | any | Multi-turn conversational gear advisor for a trip |
+| GET | `/gear-chat/:tripId` | any | Saved gear-chat history for current user + trip |
+| DELETE | `/gear-chat/:tripId` | any | Clear saved gear-chat history for current user + trip |
 
 **POST /resort-summary**
 ```json
-{ "resortId": 2, "skillLevel": 3 }
+{ "resortId": 1, "skillLevel": 3 }
 ```
+Response `data`: `{ resortId, resortName, resortDifficultyLevel, resortDifficultyLabel, skillLevel, skillLevelLabel, summary }`
 
 **POST /recommend-resorts**
 ```json
 {
-  "startDate": "2025-02-10",
-  "endDate": "2025-02-17",
-  "skillLevel": 5,
+  "startDate": "2026-12-20",
+  "endDate": "2026-12-27",
+  "skillLevel": 3,
   "sportType": "snowboard"
 }
 ```
-
-Response includes a ranked `recommendations` array with `rank`, `resortId`, `resortName`, `country`, `difficultyLevel`, `snowboardFriendly`, and a natural-language `explanation`.
+Response `data`: `{ startDate, endDate, skillLevel, skillLevelLabel, sportType, recommendations: [{ rank, resortId, resortName, country, difficultyLevel, difficultyLabel, snowboardFriendly, explanation }] }`
 
 **POST /gear-recommendation**
 ```json
-{
-  "resortId": 5,
-  "skillLevel": 2,
-  "sportType": "snowboard"
-}
+{ "resortId": 1, "skillLevel": 4, "sportType": "snowboard" }
 ```
-
-Returns a `suggestedGear` array and an optional `warning` if the resort is not snowboard-friendly.
+Response `data`: `{ resortId, resortName, snowboardFriendly, sportType, skillLevel, skillLevelLabel, suggestedGear: string[], aiGenerated: boolean, warning? }`
 
 **POST /resort-assistant**
 ```json
+{ "resortId": 1, "locationType": "slope", "sportType": "snowboard" }
+```
+`locationType` values: `lift` · `slope` · `restaurant` · `park` · `rental`
+
+Response `data`: `{ resortId, resortName, sportType, locationType, generalTip, aiGenerated: boolean, inResortSpots: [{ locationId, name, description }] }`
+
+> `aiGenerated` is `true` when the Groq LLM call succeeded, `false` when the response is rule-based fallback content from `server/constants/`. The frontend shows a small "AI advisor unavailable, showing standard recommendations" notice whenever `aiGenerated` is `false`, so fallback content is never silently presented as real AI output.
+
+**POST /gear-chat**
+```json
 {
-  "resortId": 4,
-  "locationType": "park",
-  "sportType": "snowboard"
+  "message": "What boots should I bring for icy conditions?",
+  "history": [{ "role": "user", "content": "..." }, { "role": "assistant", "content": "..." }],
+  "context": { "tripId": 5, "resort": {}, "trip": {}, "rider": {}, "forecast": {} }
 }
 ```
+Response `data`: `{ reply: string }` — also persists the user message and the reply to `gear_chat_messages`.
 
-Returns a `generalTip` and an `inResortSpots` array of matched locations.
+**GET /gear-chat/:tripId**
+Response `data`: `[{ role: 'user' | 'assistant', content: string }]` — conversation history for the current user (from `x-user-id`) and this trip.
 
-> `locationType` values: `"lift"`, `"slope"`, `"restaurant"`, `"park"`, `"rental"`
+**DELETE /gear-chat/:tripId**
+Deletes all saved gear-chat messages for the current user + trip. Response `data`: `{ deleted: true }`.
 
 ---
 
-## Data Models
+### Dashboard
 
-| File | Records | Notes |
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| GET | `/dashboard` | any | Aggregated dashboard data for the logged-in user |
+
+**GET /dashboard**
+
+Returns everything the Dashboard page needs in a single call, computed in parallelized phases (`Promise.all` / `Promise.allSettled`) to avoid frontend waterfalls:
+
+Response `data`: `{ nextTrip, attentionItems, aiSuggestions, conditionsWatch, resortSpotlight, recentActivity, recentTrips }`
+
+- `nextTrip` — the user's soonest upcoming trip, or `null`
+- `attentionItems` — pending join requests, friend requests, trip invitations, and unread chat messages that need the user's action
+- `aiSuggestions` — AI-generated packing/prep suggestions for the next trip (Groq, with fallback)
+- `conditionsWatch` — weather snapshot for upcoming trips
+- `resortSpotlight` — a scored resort recommendation
+- `recentActivity` — recent social/trip activity feed
+- `recentTrips` — the user's most recently created/joined trips
+
+---
+
+## Postman Collection
+
+A ready-to-import Postman collection covering every route group documented above (Auth, Users, Resorts, Trips, Trip Members, Resort Locations, Social — Friends, AI Features, Dashboard) is checked into this repo at:
+
+```
+server/docs/SnowTrip-Planner.postman_collection.json
+```
+
+Import it directly into Postman. It defines four collection variables: `baseUrl` (defaults to `http://localhost:3000`), and `adminId` / `managerId` / `userId`, pre-filled to match the seeded demo accounts (see root `README.md` → Demo Credentials).
+
+---
+
+## Socket.IO Events
+
+Connect to `http://localhost:3000` with auth:
+
+```js
+import { io } from 'socket.io-client';
+const socket = io('http://localhost:3000', { auth: { userId: 3 } });
+```
+
+### Client → Server
+
+| Event | Payload | Description |
 |---|---|---|
-| `users.js` | 5 | Skill levels 1–5, mixed ski/snowboard |
-| `resorts.js` | 5 | All have `latitude` and `longitude` |
-| `trips.js` | 4 | Across multiple users and resorts |
-| `resortLocations.js` | 8 | Across 4 resorts, all location types covered |
-| `weatherLogs.js` | 15 | 3 historical entries per resort |
-| `skillLevels.js` | 5 | Label/description lookup table |
-| `gearRecommendations.js` | — | Gear lists keyed by sport and skill level |
-| `locationSuggestions.js` | — | AI tip templates by location type and sport |
+| `friends:online` | — (ack: `{ onlineFriendIds }`) | Get currently online friend IDs |
+| `chat:join` | `{ tripId }` | Join a trip chat room |
+| `chat:send` | `{ tripId, content }` (ack: `{ success }`) | Send a chat message |
+| `chat:history` | `{ tripId }` (ack: `{ messages }`) | Fetch last 100 messages |
+
+### Server → Client
+
+| Event | Payload | Description |
+|---|---|---|
+| `user:online` | `{ userId }` | A friend came online |
+| `user:offline` | `{ userId }` | A friend went offline |
+| `chat:message` | `{ messageId, tripId, userId, firstName, lastName, content, createdAt }` | New message in a trip room |
+| `chat:unread-update` | `{ tripId, count }` | Updated unread-message count for a trip, sent to a specific user's socket on join-clear or on a new message to a participant not currently viewing the chat |
+| `friend:request` | `{ requestId, senderId, firstName, lastName }` | Sent to the receiver if online, when a friend request is sent or re-sent (`friendController.js`, not `socket.js`) |
+| `trip:join-request` | `{ memberId, tripId, userId, firstName, lastName }` | Sent to the trip creator if online, when someone requests to join their trip (`tripMemberController.js`, not `socket.js`) |
+| `trip:invitation` | `{ memberId, tripId, inviterFirstName, inviterLastName }` | Sent to an invited user if online, when a trip creator invites them (`tripMemberController.js`'s `inviteFriend()`, not `socket.js`) |
+
+> **Note:** `friend:request`, `trip:join-request`, and `trip:invitation` are not registered in `socket.js`'s connection handler — they are emitted directly from `friendController.js` and `tripMemberController.js` via `getIO()` / `getUserSocketId()` (imported from `../socket`), at the point the underlying REST request succeeds. `friend:request` is consumed by `Navbar.jsx`, `ProfilePanel.jsx`, and `FriendsPage.jsx` to refresh their friend-request state. `trip:join-request` is consumed by `Navbar.jsx` (combined request badge), `DashboardPage.jsx` (Requires Attention card), and `TripDetailsPage.jsx` (pending member list, when the creator is viewing that trip) to refresh their join-request state live. **`trip:invitation` currently has no frontend listener** — the invitation is still visible to the invitee via `TripsPage.jsx`'s REST fetch (`getUserInvitations`) on page load, it just isn't live-pushed yet.
 
 ---
 
-## HTTP Status Codes and Error Codes
+## Database Models
 
-| Code | Meaning |
+| Table | Key fields |
 |---|---|
-| 200 | Success (GET, PUT, DELETE) |
-| 201 | Created (POST) |
-| 400 | Validation error / missing required field |
-| 403 | Role not permitted |
-| 404 | Resource not found |
-| 422 | Unprocessable — data present but logically invalid |
-| 500 | Unexpected server error |
+| `users` | id, firstName, lastName, email, password, sportType ENUM, skillLevel INT, userRole ENUM |
+| `resorts` | id, name, country, elevation, terrainType ENUM, difficultyLevel INT, snowboardFriendly BOOL, latitude DECIMAL, longitude DECIMAL |
+| `trips` | id, userId FK, resortId FK, title, startDate, endDate, skillLevel, sportType, privacy ENUM, maxMembers INT |
+| `resort_locations` | id, resortId FK, name, type ENUM, description |
+| `friend_requests` | id, senderId FK, receiverId FK, status ENUM — UNIQUE(senderId, receiverId) |
+| `friendships` | id, user1Id FK, user2Id FK — UNIQUE(user1Id, user2Id) — enforce user1Id < user2Id |
+| `trip_members` | id, tripId FK, userId FK, status ENUM — UNIQUE(tripId, userId) |
+| `trip_messages` | id, tripId FK, userId FK, content TEXT |
+| `trip_read_status` | id, userId FK, tripId FK, lastReadAt — UNIQUE(userId, tripId) |
+| `gear_chat_messages` | id, tripId FK, userId FK, role ENUM('user','assistant'), content TEXT |
 
-| Error Code | Trigger |
-|---|---|
-| `VALIDATION_ERROR` | Missing or invalid request field |
-| `NOT_FOUND` | Resource does not exist |
-| `FORBIDDEN` | Role not permitted for this action |
-| `NO_COORDINATES` | Resort missing latitude/longitude (weather endpoint) |
-| `INTERNAL_SERVER_ERROR` | Unhandled exception |
+Sequelize uses `underscored: true` — camelCase JS fields map to snake_case DB columns automatically.
 
 ---
 
-## Troubleshooting
+## Error Codes
 
-**`Error: listen EADDRINUSE :3000`**
-Port 3000 is already in use. Find and stop the process: `lsof -i :3000` then `kill <PID>`.
+| Code | HTTP | Trigger |
+|---|---|---|
+| `VALIDATION_ERROR` | 400 | Missing or invalid field |
+| `UNAUTHORIZED` | 401 | Missing x-user-id header |
+| `FORBIDDEN` | 403 | Role not permitted or not resource owner |
+| `NOT_FOUND` | 404 | Resource does not exist |
+| `CONFLICT` | 409 | Duplicate resource (generic) |
+| `ALREADY_FRIENDS` | 409 | Friendship already exists |
+| `FRIEND_REQUEST_ALREADY_EXISTS` | 409 | Duplicate friend request |
+| `INTERNAL_SERVER_ERROR` | 500 | Unhandled exception |
 
-**CORS errors from the browser**
-The frontend is running on a port other than 5173. Update the `Access-Control-Allow-Origin` value in `server.js` line 19.
+---
 
-**All data resets on restart**
-Expected — in-memory only. Use the seeded demo credentials or re-register.
+## Migration Instructions
 
-**Weather endpoint returns 500**
-The server makes an outbound request to Open-Meteo. Check your internet connection. No API key is needed.
+### First-time setup
+
+```bash
+# 1. Create the database
+mysql -u root -p -e "CREATE DATABASE snowtrip_db;"
+
+# 2. Copy and fill in env
+cp .env.example .env
+# Edit DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, GROQ_API_KEY
+
+# 3. Run migrations (creates all 10 tables in dependency order)
+npm run db:migrate
+
+# 4. Seed demo data
+npm run db:seed
+
+# 5. Start server
+npm start
+```
+
+### Resetting the database
+
+```bash
+npm run db:reset    # undoes all migrations, re-migrates, re-seeds
+```
+
+### Running a single migration
+
+```bash
+npx sequelize-cli db:migrate --to 20260612000003-create-trips.js
+```
+
+### Undoing the last migration
+
+```bash
+npx sequelize-cli db:migrate:undo
+```
+
+### Migration file order
+
+Migrations run in filename (timestamp) order. Foreign key dependencies are:
+
+```
+users → trips (userId)
+resorts → trips (resortId)
+users + resorts → trips
+resorts → resort_locations
+users → friend_requests (senderId, receiverId)
+users → friendships (user1Id, user2Id)
+trips + users → trip_members
+trips + users → trip_messages
+trips + users → trip_read_status
+trips + users → gear_chat_messages
+```

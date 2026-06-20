@@ -1,123 +1,79 @@
-const users = require("../models/users");
+'use strict';
+const { User } = require('../db');
 
 // GET /users
-const getAllUsers = (req, res, next) => {
+const getAllUsers = async (req, res, next) => {
   try {
-    return res.status(200).json({ success: true, data: users, error: null });
+    const users = await User.findAll();
+    return res.status(200).json({ success: true, data: users.map(fmtUser), error: null });
   } catch (err) {
     next(err);
   }
 };
 
 // GET /users/:id
-const getUserById = (req, res, next) => {
+const getUserById = async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
-    const user = users.find((u) => u.userId === id);
-
+    const user = await User.findByPk(id);
     if (!user) {
       return res.status(404).json({
-        success: false,
-        data: null,
-        error: {
-          code: "NOT_FOUND",
-          message: `User with id ${id} not found.`,
-          details: {}
-        }
+        success: false, data: null,
+        error: { code: 'NOT_FOUND', message: `User with id ${id} not found.`, details: {} }
       });
     }
-
-    return res.status(200).json({ success: true, data: user, error: null });
+    return res.status(200).json({ success: true, data: fmtUser(user), error: null });
   } catch (err) {
     next(err);
   }
 };
 
-// POST /users
-const createUser = (req, res, next) => {
+// POST /users  (admin/manager panel)
+const createUser = async (req, res, next) => {
   try {
     const { firstName, lastName, userRole } = req.body;
 
-    // Validate required fields
-    const requiredFields = ["firstName", "lastName", "userRole"];
+    const requiredFields = ['firstName', 'lastName', 'userRole'];
     for (const field of requiredFields) {
       if (!req.body[field]) {
         return res.status(400).json({
-          success: false,
-          data: null,
-          error: {
-            code: "VALIDATION_ERROR",
-            message: `${field} is required.`,
-            details: { field }
-          }
+          success: false, data: null,
+          error: { code: 'VALIDATION_ERROR', message: `${field} is required.`, details: { field } }
         });
       }
     }
 
-    const newId = Math.max(...users.map((u) => u.userId), 0) + 1;
-    const now = new Date().toISOString();
-
-    const newUser = {
-      userId: newId,
-      firstName,
-      lastName,
-      createDate: now,
-      updateDate: now,
-      userRole
-    };
-
-    users.push(newUser);
-
-    return res.status(201).json({ success: true, data: { userId: newId }, error: null });
+    const user = await User.create({ firstName, lastName, userRole });
+    return res.status(201).json({ success: true, data: { userId: user.id }, error: null });
   } catch (err) {
     next(err);
   }
 };
 
 // PUT /users/:id
-const updateUser = (req, res, next) => {
+const updateUser = async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
-    const userIndex = users.findIndex((u) => u.userId === id);
-
-    if (userIndex === -1) {
+    const user = await User.findByPk(id);
+    if (!user) {
       return res.status(404).json({
-        success: false,
-        data: null,
-        error: {
-          code: "NOT_FOUND",
-          message: `User with id ${id} not found.`,
-          details: {}
-        }
+        success: false, data: null,
+        error: { code: 'NOT_FOUND', message: `User with id ${id} not found.`, details: {} }
       });
     }
 
     const { firstName, lastName, userRole } = req.body;
-
-    // Validate required fields
-    const requiredFields = ["firstName", "lastName", "userRole"];
+    const requiredFields = ['firstName', 'lastName', 'userRole'];
     for (const field of requiredFields) {
       if (!req.body[field]) {
         return res.status(400).json({
-          success: false,
-          data: null,
-          error: {
-            code: "VALIDATION_ERROR",
-            message: `${field} is required.`,
-            details: { field }
-          }
+          success: false, data: null,
+          error: { code: 'VALIDATION_ERROR', message: `${field} is required.`, details: { field } }
         });
       }
     }
 
-    users[userIndex] = {
-      ...users[userIndex],
-      firstName,
-      lastName,
-      userRole,
-      updateDate: new Date().toISOString()
-    };
-
+    await user.update({ firstName, lastName, userRole });
     return res.status(200).json({ success: true, data: { userId: id }, error: null });
   } catch (err) {
     next(err);
@@ -125,29 +81,35 @@ const updateUser = (req, res, next) => {
 };
 
 // DELETE /users/:id
-const deleteUser = (req, res, next) => {
+const deleteUser = async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
-    const userIndex = users.findIndex((u) => u.userId === id);
-
-    if (userIndex === -1) {
+    const user = await User.findByPk(id);
+    if (!user) {
       return res.status(404).json({
-        success: false,
-        data: null,
-        error: {
-          code: "NOT_FOUND",
-          message: `User with id ${id} not found.`,
-          details: {}
-        }
+        success: false, data: null,
+        error: { code: 'NOT_FOUND', message: `User with id ${id} not found.`, details: {} }
       });
     }
-
-    users.splice(userIndex, 1);
-
+    await user.destroy();
     return res.status(200).json({ success: true, data: { userId: id }, error: null });
   } catch (err) {
     next(err);
   }
 };
+
+function fmtUser(u) {
+  return {
+    userId:     u.id,
+    firstName:  u.firstName,
+    lastName:   u.lastName,
+    email:      u.email,
+    sportType:  u.sportType,
+    skillLevel: u.skillLevel,
+    userRole:   u.userRole,
+    createDate: u.createdAt,
+    updateDate: u.updatedAt
+  };
+}
 
 module.exports = { getAllUsers, getUserById, createUser, updateUser, deleteUser };

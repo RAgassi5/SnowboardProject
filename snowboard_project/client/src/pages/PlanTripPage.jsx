@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   recommendResorts, getResortForecast, getResortSummary,
   createTrip, getStoredUser, getStoredRole,
@@ -42,6 +42,10 @@ function PlanTripPage() {
   const user     = getStoredUser();
   const role     = getStoredRole();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // ── Pre-selected resort (arrived from Resort Details "Create Trip" button) ───
+  const [presetResort, setPresetResort] = useState(location.state?.presetResort ?? null);
 
   // ── Form state ──────────────────────────────────────────────────────────────
   const [form, setForm] = useState({
@@ -49,6 +53,8 @@ function PlanTripPage() {
     endDate:    '',
     skillLevel: (user?.skillLevel ?? 3).toString(),
     sportType:  user?.sportType ?? 'snowboard',
+    privacy:    'public',
+    maxMembers: '',
   });
   const [fieldErrors, setFieldErrors]    = useState({});
   const [recsLoading, setRecsLoading]    = useState(false);
@@ -121,16 +127,34 @@ function PlanTripPage() {
     }
   };
 
+  const handleContinueWithPreset = async (e) => {
+    e.preventDefault();
+    const errs = validate(form);
+    if (Object.keys(errs).length) { setFieldErrors(errs); return; }
+
+    await handleSelectResort({
+      resortId:           presetResort.resortId,
+      resortName:         presetResort.name,
+      country:            presetResort.country,
+      difficultyLevel:    presetResort.difficultyLevel,
+      snowboardFriendly:  presetResort.snowboardFriendly,
+    });
+  };
+
   const handleSaveTrip = async () => {
     if (!selected || !user) return;
     setSaving(true);
     setSaveError('');
     try {
       await createTrip({
-        userId:    user.userId,
-        resortId:  selected.resortId,
-        startDate: form.startDate,
-        endDate:   form.endDate,
+        userId:     user.userId,
+        resortId:   selected.resortId,
+        startDate:  form.startDate,
+        endDate:    form.endDate,
+        skillLevel: parseInt(form.skillLevel),
+        sportType:  form.sportType,
+        privacy:    form.privacy,
+        maxMembers: form.maxMembers ? parseInt(form.maxMembers) : null,
       }, role);
       navigate('/trips');
     } catch (err) {
@@ -154,7 +178,17 @@ function PlanTripPage() {
           <span style={styles.stepTitle}>Enter Your Trip Details</span>
         </div>
 
-        <form onSubmit={handleGetRecommendations} noValidate id="plan-trip-form">
+        {presetResort && (
+          <div style={styles.presetBanner}>
+            <span>🏔️ Creating a trip for <strong>{presetResort.name}</strong> — fill in your trip details below.</span>
+            <button type="button" id="choose-different-resort-btn" onClick={() => navigate('/resorts')}
+              style={styles.presetBannerLink}>
+              Choose a different resort
+            </button>
+          </div>
+        )}
+
+        <form onSubmit={presetResort ? handleContinueWithPreset : handleGetRecommendations} noValidate id="plan-trip-form">
           <div style={styles.formGrid}>
             {/* Start date */}
             <div className="form-group" style={{ marginBottom: 0 }}>
@@ -220,24 +254,61 @@ function PlanTripPage() {
                 <span className="form-error" role="alert">⚠ {fieldErrors.sportType}</span>
               )}
             </div>
+
+            {/* Privacy */}
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Trip Privacy</label>
+              <div style={styles.sportToggle}>
+                {[
+                  { value: 'public',       label: '🌍 Public' },
+                  { value: 'friends-only', label: '👥 Friends Only' },
+                  { value: 'private',      label: '🔒 Private' },
+                ].map(opt => (
+                  <label key={opt.value} htmlFor={`pt-privacy-${opt.value}`}
+                    style={{ ...styles.sportOpt, ...(form.privacy === opt.value ? styles.sportOptActive : {}) }}>
+                    <input id={`pt-privacy-${opt.value}`} type="radio" name="privacy"
+                      value={opt.value} checked={form.privacy === opt.value}
+                      onChange={handleChange} style={{ display: 'none' }} />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Max members */}
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label htmlFor="pt-maxMembers" className="form-label">Max Members <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></label>
+              <input
+                id="pt-maxMembers" name="maxMembers" type="number"
+                className="form-input"
+                value={form.maxMembers}
+                onChange={handleChange}
+                min="1" max="100"
+                placeholder="No limit"
+              />
+            </div>
           </div>
 
           <ErrorMessage message={recsError} onDismiss={() => setRecsError('')} />
 
           <button type="submit" id="get-recommendations-btn"
-            className="btn btn-primary" disabled={recsLoading}
+            className="btn btn-primary" disabled={recsLoading || builderLoading}
             style={{ marginTop: '1rem' }}>
-            {recsLoading
-              ? <><span className="spinner spinner-sm" /> Finding your resorts…</>
-              : '🎯 Get Top 3 Recommendations'}
+            {presetResort
+              ? (builderLoading
+                  ? <><span className="spinner spinner-sm" /> Loading {presetResort.name}…</>
+                  : `➡️ Continue with ${presetResort.name}`)
+              : (recsLoading
+                  ? <><span className="spinner spinner-sm" /> Finding your resorts…</>
+                  : '🎯 Get Top 3 Recommendations')}
           </button>
         </form>
       </section>
 
       {/* ── STEP 2: Top 3 recommendations ──────────────────────────────────── */}
-      {recsLoading && <LoadingSpinner message="Analysing resorts for you…" />}
+      {!presetResort && recsLoading && <LoadingSpinner message="Analysing resorts for you…" />}
 
-      {!recsLoading && recommendations && (
+      {!presetResort && !recsLoading && recommendations && (
         <section style={styles.recsSection} aria-label="Resort recommendations">
           <div style={styles.stepLabel}>
             <span style={styles.stepNum}>2</span>
@@ -292,6 +363,13 @@ function PlanTripPage() {
                   <OverviewItem icon={selected.snowboardFriendly ? '✅' : '⚠️'}
                     label="Board-friendly"
                     value={selected.snowboardFriendly ? 'Yes' : 'Cat-tracks present'} />
+                  <OverviewItem
+                    icon={{ public: '🌍', 'friends-only': '👥', private: '🔒' }[form.privacy]}
+                    label="Privacy"
+                    value={{ public: 'Public', 'friends-only': 'Friends Only', private: 'Private' }[form.privacy]} />
+                  {form.maxMembers && (
+                    <OverviewItem icon="👥" label="Max Members" value={form.maxMembers} />
+                  )}
                 </div>
               </div>
 
@@ -414,6 +492,20 @@ const styles = {
   formGrid: {
     display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
     gap: '1rem',
+  },
+  presetBanner: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    gap: '1rem', flexWrap: 'wrap',
+    padding: '0.75rem 1rem', marginBottom: '1.25rem',
+    background: 'rgba(79,142,247,0.1)',
+    border: '1px solid rgba(79,142,247,0.25)',
+    borderRadius: 'var(--radius-md)',
+    fontSize: '0.85rem', color: 'var(--text-secondary)',
+  },
+  presetBannerLink: {
+    background: 'none', border: 'none', cursor: 'pointer',
+    color: 'var(--accent-light)', fontSize: '0.82rem', fontWeight: 600,
+    textDecoration: 'underline', padding: 0, flexShrink: 0,
   },
   sportToggle: { display: 'flex', gap: '0.6rem' },
   sportOpt: {

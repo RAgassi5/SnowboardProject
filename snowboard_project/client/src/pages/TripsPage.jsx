@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getUserTrips, getResorts, getStoredUser, deleteTrip } from '../services/api';
+import {
+  getUserTrips, getResorts, getStoredUser, deleteTrip,
+  getUserInvitations, approveTripMember, removeTripMember, getUnreadCounts,
+  getJoinedTrips, getDashboard,
+} from '../services/api';
+import { getSocket, connectSocket } from '../services/socket';
 import TripCard from '../components/TripCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
@@ -8,10 +13,14 @@ import ErrorMessage from '../components/ErrorMessage';
 function TripsPage() {
   const user = getStoredUser();
 
-  const [trips,   setTrips]   = useState([]);
-  const [resorts, setResorts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState('');
+  const [trips,        setTrips]        = useState([]);
+  const [resorts,      setResorts]      = useState([]);
+  const [joinedTrips,  setJoinedTrips]  = useState([]);
+  const [invitations,  setInvitations]  = useState([]);
+  const [unreadCounts, setUnreadCounts] = useState({});
+  const [joinRequestCounts, setJoinRequestCounts] = useState({});
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState('');
 
   useEffect(() => {
     if (!user?.userId) { setError('No user session found.'); setLoading(false); return; }
@@ -21,13 +30,26 @@ function TripsPage() {
       setLoading(true);
       setError('');
       try {
-        const [tripsData, resortsData] = await Promise.all([
+        const [tripsData, resortsData, invitationsData, unreadData, joinedData, dashboardData] = await Promise.all([
           getUserTrips(user.userId),
           getResorts(),
+          getUserInvitations(user.userId),
+          getUnreadCounts(user.userId),
+          getJoinedTrips(user.userId),
+          getDashboard(),
         ]);
         if (!cancelled) {
           setTrips(tripsData);
           setResorts(resortsData);
+          setInvitations(invitationsData ?? []);
+          setUnreadCounts(unreadData ?? {});
+          setJoinedTrips(joinedData ?? []);
+
+          const joinCounts = {};
+          for (const item of dashboardData?.attentionItems ?? []) {
+            if (item.type === 'join_request') joinCounts[item.tripId] = item.count ?? 1;
+          }
+          setJoinRequestCounts(joinCounts);
         }
       } catch (err) {
         if (!cancelled) setError(err.message);
@@ -39,6 +61,49 @@ function TripsPage() {
     load();
     return () => { cancelled = true; };
   }, [user?.userId]);
+
+  // Listen for real-time unread count updates from socket
+  useEffect(() => {
+    if (!user?.userId) return;
+    let socket = getSocket();
+    if (!socket) socket = connectSocket();
+    if (!socket) return;
+
+    const onUnreadUpdate = ({ tripId, count }) => {
+      setUnreadCounts(prev => ({ ...prev, [tripId]: count }));
+    };
+
+    // Someone just requested to join one of my trips — bump that trip's badge live
+    const onJoinRequest = ({ tripId }) => {
+      setJoinRequestCounts(prev => ({ ...prev, [tripId]: (prev[tripId] ?? 0) + 1 }));
+    };
+
+    socket.on('chat:unread-update',  onUnreadUpdate);
+    socket.on('trip:join-request',   onJoinRequest);
+    return () => {
+      socket.off('chat:unread-update', onUnreadUpdate);
+      socket.off('trip:join-request',  onJoinRequest);
+    };
+  }, [user?.userId]);
+
+  // Accept or decline a trip invitation
+  const handleAcceptInvitation = async (memberId) => {
+    try {
+      await approveTripMember(memberId);
+      setInvitations(prev => prev.filter(i => i.memberId !== memberId));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleDeclineInvitation = async (memberId) => {
+    try {
+      await removeTripMember(memberId);
+      setInvitations(prev => prev.filter(i => i.memberId !== memberId));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
   // Delete a trip and remove from local state
   const handleDeleteTrip = async (tripId) => {
@@ -69,8 +134,8 @@ function TripsPage() {
       {loading && <LoadingSpinner message="Loading your trips…" />}
       {!loading && error && <ErrorMessage message={error} onDismiss={() => setError('')} />}
 
-      {/* Empty */}
-      {!loading && !error && trips.length === 0 && (
+      {/* Empty — only when both sections are empty */}
+      {!loading && !error && trips.length === 0 && joinedTrips.length === 0 && (
         <div className="empty-state">
           <span className="empty-icon">🏔️</span>
           <h3>You have no planned trips yet</h3>
@@ -82,19 +147,82 @@ function TripsPage() {
         </div>
       )}
 
-      {/* Trip cards grid — TripCard used for every trip (≥3 reuse) */}
+      {/* Pending trip invitations */}
+      {!loading && !error && invitations.length > 0 && (
+        <div style={styles.invitationsSection}>
+          <h2 style={styles.invitationsTitle}>📨 Trip Invitations</h2>
+          <div className="grid-3">
+            {invitations.map(inv => (
+              <div key={inv.memberId} className="card" style={styles.invitationCard}>
+                <div style={styles.invitationResort}>
+                  {inv.resort?.name ?? `Resort #${inv.resortId}`}
+                </div>
+                <div style={styles.invitationDates}>
+                  📅 {new Date(inv.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  {' → '}
+                  {new Date(inv.endDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </div>
+                {inv.creator && (
+                  <div style={styles.invitationCreator}>
+                    Invited by {inv.creator.firstName} {inv.creator.lastName}
+                  </div>
+                )}
+                <div style={styles.invitationActions}>
+                  <button
+                    className="btn btn-primary"
+                    style={{ flex: 1, fontSize: '0.82rem' }}
+                    onClick={() => handleAcceptInvitation(inv.memberId)}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ flex: 1, fontSize: '0.82rem' }}
+                    onClick={() => handleDeclineInvitation(inv.memberId)}
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Trips I Created */}
       {!loading && !error && enrichedTrips.length > 0 && (
-        <>
-          <div style={styles.tripCount}>
-            {enrichedTrips.length} trip{enrichedTrips.length !== 1 ? 's' : ''} planned
+        <section style={{ marginBottom: '3rem' }}>
+          <h2 style={styles.sectionHeader}>Trips I Created</h2>
+          <div style={styles.sectionCount}>
+            {enrichedTrips.length} trip{enrichedTrips.length !== 1 ? 's' : ''}
           </div>
           <div className="grid-3">
             {enrichedTrips.map(({ resort, ...trip }) => (
               <TripCard key={trip.tripId} trip={trip} resort={resort}
-                onDelete={handleDeleteTrip} />
+                onDelete={handleDeleteTrip}
+                creator={{ firstName: user.firstName, lastName: user.lastName }}
+                unreadCount={unreadCounts[trip.tripId] ?? 0}
+                joinRequestCount={joinRequestCounts[trip.tripId] ?? 0} />
             ))}
           </div>
-        </>
+        </section>
+      )}
+
+      {/* Trips I Joined */}
+      {!loading && !error && joinedTrips.length > 0 && (
+        <section style={{ marginBottom: '2rem' }}>
+          <h2 style={styles.sectionHeader}>Trips I Joined</h2>
+          <div style={styles.sectionCount}>
+            {joinedTrips.length} trip{joinedTrips.length !== 1 ? 's' : ''}
+          </div>
+          <div className="grid-3">
+            {joinedTrips.map(trip => (
+              <TripCard key={trip.tripId} trip={trip} resort={trip.resort}
+                creator={trip.creator}
+                unreadCount={unreadCounts[trip.tripId] ?? 0} />
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );
@@ -106,9 +234,38 @@ const styles = {
     justifyContent: 'space-between', gap: '1rem',
     flexWrap: 'wrap', marginBottom: '2rem',
   },
-  tripCount: {
-    fontSize: '0.85rem', color: 'var(--text-muted)',
+  sectionHeader: {
+    fontSize: '1rem', fontWeight: 700,
+    color: 'var(--text-primary)', marginBottom: '0.25rem',
+  },
+  sectionCount: {
+    fontSize: '0.82rem', color: 'var(--text-muted)',
     marginBottom: '1rem',
+  },
+  invitationsSection: {
+    marginBottom: '2.5rem',
+  },
+  invitationsTitle: {
+    fontSize: '1.1rem', fontWeight: 700,
+    color: 'var(--text-primary)', marginBottom: '0.75rem',
+  },
+  invitationCard: {
+    position: 'relative', overflow: 'hidden',
+    display: 'flex', flexDirection: 'column',
+    gap: '0.55rem', paddingTop: '1rem',
+  },
+  invitationResort: {
+    fontSize: '1rem', fontWeight: 700,
+    color: 'var(--text-primary)',
+  },
+  invitationDates: {
+    fontSize: '0.82rem', color: 'var(--text-muted)',
+  },
+  invitationCreator: {
+    fontSize: '0.8rem', color: 'var(--text-secondary)',
+  },
+  invitationActions: {
+    display: 'flex', gap: '0.5rem', marginTop: 'auto',
   },
 };
 

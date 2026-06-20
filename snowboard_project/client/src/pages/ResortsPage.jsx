@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { getResorts } from '../services/api';
 import DataTable from '../components/DataTable';
+import ResortCard from '../components/ResortCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
 
@@ -63,11 +64,17 @@ const COLUMNS = [
       </span>
     ),
   },
+  {
+    key: 'viewLink',
+    label: '',
+    render: () => <span style={styles.viewLink}>View Resort →</span>,
+  },
 ];
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 function ResortsPage() {
+  const navigate = useNavigate();
   const [resorts, setResorts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
@@ -120,24 +127,32 @@ function ResortsPage() {
       return sortDir === 'asc' ? cmp : -cmp;
     });
 
-  // Sortable column headers
-  const sortableColumns = COLUMNS.map((col) => ({
-    ...col,
-    label: (
-      <button
-        onClick={() => handleSort(col.key)}
-        style={sortHeaderStyle(sortKey === col.key)}
-        title={`Sort by ${col.label}`}
-      >
-        {col.label}
-        {sortKey === col.key && (
-          <span aria-label={sortDir === 'asc' ? 'Sorted ascending' : 'Sorted descending'}>
-            {sortDir === 'asc' ? ' ↑' : ' ↓'}
-          </span>
-        )}
-      </button>
-    ),
-  }));
+  // Sortable column headers (the trailing "view" column isn't sortable)
+  const sortableColumns = COLUMNS.map((col) => {
+    if (col.key === 'viewLink') return col;
+    return {
+      ...col,
+      label: (
+        <button
+          onClick={() => handleSort(col.key)}
+          style={sortHeaderStyle(sortKey === col.key)}
+          title={`Sort by ${col.label}`}
+        >
+          {col.label}
+          {sortKey === col.key && (
+            <span aria-label={sortDir === 'asc' ? 'Sorted ascending' : 'Sorted descending'}>
+              {sortDir === 'asc' ? ' ↑' : ' ↓'}
+            </span>
+          )}
+        </button>
+      ),
+    };
+  });
+
+  // Featured Resorts — top 6 by elevation, reusing already-fetched data (no new endpoint)
+  const featured = [...resorts]
+    .sort((a, b) => (b.elevation ?? 0) - (a.elevation ?? 0))
+    .slice(0, 6);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -147,6 +162,20 @@ function ResortsPage() {
         <h1>Ski &amp; Snowboard Resorts</h1>
         <p>Full resort database — sortable and searchable</p>
       </div>
+
+      {/* Featured Resorts */}
+      {!loading && !error && featured.length > 0 && (
+        <section style={styles.featuredSection} aria-label="Featured resorts">
+          <h2 style={styles.featuredHeading}>🌟 Featured Resorts</h2>
+          <div style={styles.featuredStrip}>
+            {featured.map((resort) => (
+              <div key={resort.resortId} style={styles.featuredCardWrap}>
+                <ResortCard resort={resort} onClick={() => navigate(`/resorts/${resort.resortId}`)} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Toolbar */}
       {!loading && !error && resorts.length > 0 && (
@@ -185,6 +214,7 @@ function ResortsPage() {
           id="resorts-table"
           columns={sortableColumns}
           data={filtered}
+          onRowClick={(row) => navigate(`/resorts/${row.resortId}`)}
           emptyMessage={
             search
               ? `No resorts match "${search}".`
@@ -256,6 +286,32 @@ const sortHeaderStyle = (active) => ({
 });
 
 const styles = {
+  featuredSection: {
+    marginBottom: '2rem',
+  },
+  featuredHeading: {
+    fontSize: '1.2rem',
+    fontWeight: 700,
+    fontFamily: 'var(--font-display)',
+    color: 'var(--text-primary)',
+    marginBottom: '1rem',
+  },
+  featuredStrip: {
+    display: 'flex',
+    gap: '1.25rem',
+    overflowX: 'auto',
+    scrollSnapType: 'x proximity',
+    paddingBottom: '0.5rem',
+  },
+  featuredCardWrap: {
+    flex: '0 0 280px',
+    scrollSnapAlign: 'start',
+  },
+  viewLink: {
+    color: 'var(--accent-light)',
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+  },
   toolbar: {
     display: 'flex',
     alignItems: 'center',

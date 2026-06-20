@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const app = express();
 
@@ -7,8 +8,11 @@ const userRoutes = require("./routes/userRoutes");
 const resortRoutes = require("./routes/resortRoutes");
 const tripRoutes = require("./routes/tripRoutes");
 const resortLocationRoutes = require("./routes/resortLocationRoutes");
-const aiRoutes   = require("./routes/aiRoutes");
-const authRoutes = require("./routes/authRoutes");
+const aiRoutes     = require("./routes/aiRoutes");
+const authRoutes   = require("./routes/authRoutes");
+const socialRoutes     = require("./routes/socialRoutes");
+const tripMemberRoutes  = require("./routes/tripMemberRoutes");
+const dashboardRoutes   = require("./routes/dashboardRoutes");
 
 // ─── Global Middleware ────────────────────────────────────────────────────────
 app.use(express.json());
@@ -31,7 +35,10 @@ app.use("/resorts", resortRoutes);
 app.use("/trips", tripRoutes);
 app.use("/resort-locations", resortLocationRoutes);
 app.use("/", aiRoutes);
-app.use("/auth", authRoutes);
+app.use("/", socialRoutes);
+app.use("/trip-members", tripMemberRoutes);
+app.use("/auth",      authRoutes);
+app.use("/dashboard", dashboardRoutes);
 
 // ─── 404 Fallback — unknown endpoints ────────────────────────────────────────
 app.use((req, res) => {
@@ -62,8 +69,19 @@ app.use((err, req, res, next) => {
 });
 
 // ─── Start Server ─────────────────────────────────────────────────────────────
+const http            = require("http");
+const { sequelize }   = require("./db");
+const { initSocket }  = require("./socket");
 const PORT = 3000;
-app.listen(PORT, () => {
+
+const httpServer = http.createServer(app);
+initSocket(httpServer);
+
+sequelize.authenticate()
+  .then(() => console.log("Database connected successfully."))
+  .catch((err) => console.error("Database connection failed:", err.message));
+
+httpServer.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
 

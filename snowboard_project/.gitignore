@@ -14,6 +14,9 @@ server/build/
 .env.*
 server/.env
 server/.env.*
+!.env.example
+!client/.env.example
+!server/.env.example
 
 # ── Logs ─────────────────────────────────────────────────────────
 npm-debug.log*

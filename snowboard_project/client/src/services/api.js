@@ -246,7 +246,7 @@ export const recommendResorts = (payload, role) =>
  * POST /gear-recommendation
  * Requires x-user-role header (any valid role).
  * Payload: { resortId, skillLevel, sportType }
- * Returns { resortId, resortName, suggestedGear, warning? }
+ * Returns { resortId, resortName, suggestedGear, aiGenerated, warning? }
  */
 export const getGearRecommendation = (payload, role) =>
   request('/gear-recommendation', {
@@ -270,8 +270,11 @@ export const getResortSummary = (payload) =>
 /**
  * POST /resort-assistant
  * Requires x-user-role header (any valid role).
- * Payload: { resortId, locationType, sportType }
- * Returns { resortId, resortName, generalTip, inResortSpots }
+ * Payload: { resortId, locationType, sportType, skillLevel?, startDate?, endDate?, weatherSummary? }
+ *   — skillLevel/startDate/endDate/weatherSummary are optional trip context;
+ *     prefer trip-level values over the viewer's profile defaults when calling.
+ * Returns { resortId, resortName, locationType, sportType, skillLevel, aiGenerated,
+ *           summary, recommendations: [{name, reason, bestFor, weatherNote}], inResortSpots }
  */
 export const getResortAssistant = (payload, role) =>
   request('/resort-assistant', {
@@ -279,6 +282,42 @@ export const getResortAssistant = (payload, role) =>
     body: payload,
     role: role ?? getStoredRole()
   });
+
+/**
+ * POST /gear-chat
+ * Requires x-user-role header (any valid role).
+ * Payload: { message, history, context: { tripId, resort, trip, rider, forecast } }
+ * Returns { reply }
+ */
+export const sendGearChatMessage = (payload) =>
+  request('/gear-chat', {
+    method: 'POST',
+    body: payload,
+  });
+
+/**
+ * GET /gear-chat/:tripId
+ * Returns saved conversation history for the current user + trip as [{ role, content }]
+ */
+export const getGearChatHistory = (tripId) =>
+  request(`/gear-chat/${tripId}`);
+
+/**
+ * DELETE /gear-chat/:tripId
+ * Deletes all saved gear chat messages for the current user + trip.
+ */
+export const resetGearChatHistory = (tripId) =>
+  request(`/gear-chat/${tripId}`, { method: 'DELETE' });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// DASHBOARD
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /dashboard
+ * Returns all dashboard sections in a single aggregated response.
+ */
+export const getDashboard = () => request('/dashboard');
 
 // ═════════════════════════════════════════════════════════════════════════════
 // USERS
@@ -388,6 +427,73 @@ export const deleteTrip = (tripId, role) =>
     method: 'DELETE',
     role: role ?? getStoredRole()
   });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// TRIP DISCOVERY & MEMBERSHIP
+// ═════════════════════════════════════════════════════════════════════════════
+
+export const discoverTrips = (filters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.sportType)  params.set('sportType',  filters.sportType);
+  if (filters.skillLevel) params.set('skillLevel', filters.skillLevel);
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  return request(`/trips/discover${qs}`);
+};
+
+export const joinTrip = (tripId) =>
+  request(`/trips/${tripId}/join`, { method: 'POST' });
+
+export const getTripMembers = (tripId) =>
+  request(`/trips/${tripId}/members`);
+
+export const approveTripMember = (memberId) =>
+  request(`/trip-members/${memberId}/approve`, { method: 'PUT' });
+
+export const rejectTripMember = (memberId) =>
+  request(`/trip-members/${memberId}/reject`, { method: 'PUT' });
+
+export const getJoinedTrips = (userId) =>
+  request(`/users/${userId}/joined-trips`);
+
+export const removeTripMember = (memberId) =>
+  request(`/trip-members/${memberId}`, { method: 'DELETE' });
+
+export const inviteFriendToTrip = (tripId, userId) =>
+  request(`/trips/${tripId}/invite`, { method: 'POST', body: { userId } });
+
+export const getUserInvitations = (userId) =>
+  request(`/users/${userId}/invitations`);
+
+export const getUnreadCounts = (userId) =>
+  request(`/users/${userId}/unread-counts`);
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SOCIAL — Friends & Friend Requests
+// ═════════════════════════════════════════════════════════════════════════════
+
+export const searchUsers = (q) =>
+  request(`/users/search?q=${encodeURIComponent(q)}`);
+
+export const getFriends = (userId) =>
+  request(`/users/${userId}/friends`);
+
+export const getReceivedRequests = (userId) =>
+  request(`/users/${userId}/friend-requests/received`);
+
+export const getSentRequests = (userId) =>
+  request(`/users/${userId}/friend-requests/sent`);
+
+export const sendFriendRequest = (receiverId) =>
+  request('/friend-requests', { method: 'POST', body: { receiverId } });
+
+export const acceptFriendRequest = (requestId) =>
+  request(`/friend-requests/${requestId}/accept`, { method: 'PUT' });
+
+export const rejectFriendRequest = (requestId) =>
+  request(`/friend-requests/${requestId}/reject`, { method: 'PUT' });
+
+export const removeFriend = (friendshipId) =>
+  request(`/friendships/${friendshipId}`, { method: 'DELETE' });
 
 // ═════════════════════════════════════════════════════════════════════════════
 // RESORT LOCATIONS
