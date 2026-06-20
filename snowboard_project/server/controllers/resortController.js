@@ -143,7 +143,8 @@ function fmtResort(r) {
     difficultyLevel:   r.difficultyLevel,
     snowboardFriendly: r.snowboardFriendly,
     latitude:          r.latitude  != null ? parseFloat(r.latitude)  : null,
-    longitude:         r.longitude != null ? parseFloat(r.longitude) : null
+    longitude:         r.longitude != null ? parseFloat(r.longitude) : null,
+    imageUrl:          r.imageUrl ?? null
   };
 }
 
@@ -183,7 +184,7 @@ function computeSummary(days) {
   };
 }
 
-async function fetchForecast(resort, startDate, endDate, forecastDays = 7) {
+async function fetchForecast(resort, startDate, endDate, forecastDays = 7, signal) {
   const url = new URL("https://api.open-meteo.com/v1/forecast");
   url.searchParams.set("latitude",  resort.latitude);
   url.searchParams.set("longitude", resort.longitude);
@@ -195,12 +196,12 @@ async function fetchForecast(resort, startDate, endDate, forecastDays = 7) {
   } else {
     url.searchParams.set("forecast_days", forecastDays);
   }
-  const r = await fetch(url.toString());
+  const r = await fetch(url.toString(), { signal });
   if (!r.ok) throw new Error(`Open-Meteo Forecast error: ${r.status}`);
   return mapDays((await r.json()).daily);
 }
 
-async function fetchHistorical(resort, startDate, endDate) {
+async function fetchHistorical(resort, startDate, endDate, signal) {
   const url = new URL("https://archive-api.open-meteo.com/v1/archive");
   url.searchParams.set("latitude",   resort.latitude);
   url.searchParams.set("longitude",  resort.longitude);
@@ -208,18 +209,24 @@ async function fetchHistorical(resort, startDate, endDate) {
   url.searchParams.set("start_date", startDate);
   url.searchParams.set("end_date",   endDate);
   url.searchParams.set("timezone",   "auto");
-  const r = await fetch(url.toString());
+  let r = await fetch(url.toString(), { signal });
+  if (r.status === 429) {
+    // Transient rate-limit — Open-Meteo's archive API briefly throttles bursts; one retry clears it.
+    await new Promise(resolve => setTimeout(resolve, 400));
+    r = await fetch(url.toString(), { signal });
+  }
   if (!r.ok) throw new Error(`Open-Meteo Archive error: ${r.status}`);
   return mapDays((await r.json()).daily);
 }
 
-async function fetchTypical(resort, startDate, endDate) {
+async function fetchTypical(resort, startDate, endDate, signal) {
   const s = new Date(startDate);
   const e = new Date(endDate);
   const historicalYears = await Promise.all(
     [-3, -2, -1].map(offset => fetchHistorical(resort,
       `${s.getFullYear() + offset}-${pad(s.getMonth() + 1)}-${pad(s.getDate())}`,
-      `${e.getFullYear() + offset}-${pad(e.getMonth() + 1)}-${pad(e.getDate())}`
+      `${e.getFullYear() + offset}-${pad(e.getMonth() + 1)}-${pad(e.getDate())}`,
+      signal
     ))
   );
   const dayCount = historicalYears[0].length;
@@ -317,4 +324,7 @@ const getWeatherForecast = async (req, res, next) => {
   }
 };
 
-module.exports = { getAllResorts, getResortById, createResort, updateResort, deleteResort, getWeatherForecast };
+module.exports = {
+  getAllResorts, getResortById, createResort, updateResort, deleteResort, getWeatherForecast,
+  fetchForecast, fetchHistorical, fetchTypical, computeSummary, FORECAST_HORIZON
+};
