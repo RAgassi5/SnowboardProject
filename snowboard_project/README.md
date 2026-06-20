@@ -170,7 +170,6 @@ Get a free Groq key at https://console.groq.com → API Keys.
 | Frontend dev server | http://localhost:5173 |
 
 ---
-
 ## Demo Credentials
 
 | Role | Email | Password |
@@ -217,6 +216,7 @@ The backend exposes a Socket.IO server on port 3000. The frontend connects autom
 | `chat:unread-update` | server → client | Pushes an updated unread-message count for a trip to a specific user's socket (sent on join-clear and on new messages to participants not currently viewing the chat) |
 | `friend:request` | server → client | Sent when someone sends or re-sends you a friend request, if you're online. Emitted directly from `friendController.js` (not `socket.js`'s connection handler) via `getIO()`/`getUserSocketId()`. Triggers a badge/list refresh in `Navbar.jsx`, `ProfilePanel.jsx`, and `FriendsPage.jsx`. |
 | `trip:join-request` | server → client | Sent to a trip's creator when someone requests to join, if the creator is online. Emitted directly from `tripMemberController.js`. Triggers a live badge/data refresh in `Navbar.jsx` (combined request badge), `DashboardPage.jsx` (Requires Attention card), and `TripDetailsPage.jsx` (pending member list), if the creator is on that page. |
+| `trip:invitation` | server → client | Sent to an invited user when a trip creator invites them, if they're online. Emitted directly from `tripMemberController.js`'s `inviteFriend()`. **Note:** no frontend listener currently consumes this event in real time — the invitation itself is still visible via `TripsPage.jsx`'s REST fetch (`getUserInvitations`) on page load/reload, it just isn't live-pushed like `trip:join-request` is. |
 
 ### Socket Authentication
 
