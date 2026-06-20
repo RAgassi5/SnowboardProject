@@ -14,7 +14,6 @@ A full-stack web application for planning ski and snowboard trips. Users browse 
 - [Environment Variables](#environment-variables)
 - [Database Setup](#database-setup)
 - [Default Ports](#default-ports)
-- [API Testing (Postman)](#api-testing-postman)
 - [Demo Credentials](#demo-credentials)
 - [Features and Pages](#features-and-pages)
 - [Real-Time Features (Socket.IO)](#real-time-features-socketio)
@@ -171,19 +170,6 @@ Get a free Groq key at https://console.groq.com → API Keys.
 | Frontend dev server | http://localhost:5173 |
 
 ---
-
-## API Testing (Postman)
-
-A ready-to-import Postman collection covering every route group (Auth, Users, Friends, Trips, Trip Members, Resorts, Resort Locations, AI Features, Dashboard) lives at:
-
-```
-server/docs/SnowTrip-Planner.postman_collection.json
-```
-
-Import it into Postman, then set the collection's `baseUrl` variable to `http://localhost:3000` (already the default) — the `adminId`/`managerId`/`userId` variables are pre-filled to match the seeded demo accounts above.
-
----
-
 ## Demo Credentials
 
 | Role | Email | Password |
