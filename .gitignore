@@ -7,3 +7,17 @@
 # ── AI / Claude Code ──────────────────────────────────────────────
 .claude/
 CLAUDE.md
+
+# ── Playwright / MCP review artifacts ──────────────────────────────
+.playwright-mcp/
+playwright-report/
+test-results/
+*.trace
+# Loose screenshots/snapshots dropped at the repo root during ad-hoc
+# reviews (scoped to root only — does not affect app assets nested
+# under client/public or client/src).
+/*.png
+/*.jpg
+/*.jpeg
+/*.webm
+/*.zip

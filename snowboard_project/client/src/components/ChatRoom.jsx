@@ -127,6 +127,7 @@ export default function ChatRoom({ tripId }) {
 const styles = {
   root: {
     display: 'flex', flexDirection: 'column', gap: '0',
+    height: '100%',
     border: '1px solid var(--border-subtle)',
     borderRadius: 'var(--radius-lg)',
     overflow: 'hidden',
@@ -137,7 +138,7 @@ const styles = {
   },
   messageList: {
     display: 'flex', flexDirection: 'column', gap: '0.25rem',
-    maxHeight: 340, overflowY: 'auto',
+    flex: 1, overflowY: 'auto', minHeight: 0,
     padding: '1rem',
   },
   empty: {
@@ -179,6 +180,7 @@ const styles = {
   },
   inputRow: {
     display: 'flex', gap: '0',
+    flexShrink: 0,
     borderTop: '1px solid var(--border-subtle)',
   },
   input: {

@@ -392,7 +392,12 @@ function TripDetailsPage() {
                 <div style={styles.memberList}>
                   {approved.map(m => (
                     <div key={m.memberId} style={styles.memberRow}>
-                      <div style={{ ...styles.memberAvatar, background: 'rgba(52,211,153,0.2)', color: '#34d399' }}>
+                      <div style={{
+                        ...styles.memberAvatar,
+                        ...(m.isCreator
+                          ? { background: 'rgba(245,158,11,0.2)', color: '#f59e0b' }
+                          : { background: 'rgba(52,211,153,0.2)', color: '#34d399' }),
+                      }}>
                         {m.user.firstName[0]}
                       </div>
                       <div style={styles.memberInfo}>
@@ -400,7 +405,9 @@ function TripDetailsPage() {
                         <div style={styles.memberMeta}>{m.user.sportType} · Level {m.user.skillLevel}</div>
                       </div>
                       <div style={styles.memberActions}>
-                        {isCreator ? (
+                        {m.isCreator ? (
+                          <span style={styles.creatorBadge}>👑 Creator</span>
+                        ) : isCreator ? (
                           <button
                             style={styles.rejectBtn}
                             disabled={memberAction[m.memberId]}
@@ -831,6 +838,12 @@ const styles = {
   approvedBadge: {
     marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 700,
     color: '#34d399', background: 'rgba(52,211,153,0.1)',
+    padding: '0.2rem 0.6rem', borderRadius: 'var(--radius-sm)',
+    flexShrink: 0,
+  },
+  creatorBadge: {
+    marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 700,
+    color: '#f59e0b', background: 'rgba(245,158,11,0.1)',
     padding: '0.2rem 0.6rem', borderRadius: 'var(--radius-sm)',
     flexShrink: 0,
   },

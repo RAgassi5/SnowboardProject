@@ -190,29 +190,60 @@ const getTripMembers = async (req, res, next) => {
   try {
     const tripId = parseInt(req.params.id);
 
+    const trip = await Trip.findByPk(tripId, {
+      include: [{ model: User, as: 'creator', attributes: ['id', 'firstName', 'lastName', 'email', 'sportType', 'skillLevel'] }]
+    });
+    if (!trip) {
+      return res.status(404).json({ success: false, data: null, error: { code: 'NOT_FOUND', message: `Trip ${tripId} not found.`, details: {} } });
+    }
+
+    // Creators are never stored as TripMember rows — exclude any stray row for
+    // them defensively, then prepend a synthetic "creator" entry below.
     const members = await TripMember.findAll({
-      where: { tripId },
+      where: { tripId, userId: { [Op.ne]: trip.userId } },
       include: [{ model: User, attributes: ['id', 'firstName', 'lastName', 'email', 'sportType', 'skillLevel'] }]
     });
 
+    const creatorEntry = {
+      memberId:     'creator',
+      tripId,
+      userId:       trip.creator.id,
+      status:       'approved',
+      isInvitation: false,
+      isCreator:    true,
+      createdAt:    trip.createdAt,
+      user: {
+        userId:     trip.creator.id,
+        firstName:  trip.creator.firstName,
+        lastName:   trip.creator.lastName,
+        email:      trip.creator.email,
+        sportType:  trip.creator.sportType,
+        skillLevel: trip.creator.skillLevel
+      }
+    };
+
     return res.status(200).json({
       success: true,
-      data: members.map(m => ({
-        memberId:     m.id,
-        tripId:       m.tripId,
-        userId:       m.userId,
-        status:       m.status,
-        isInvitation: m.isInvitation,
-        createdAt:    m.createdAt,
-        user: {
-          userId:     m.User.id,
-          firstName:  m.User.firstName,
-          lastName:   m.User.lastName,
-          email:      m.User.email,
-          sportType:  m.User.sportType,
-          skillLevel: m.User.skillLevel
-        }
-      })),
+      data: [
+        creatorEntry,
+        ...members.map(m => ({
+          memberId:     m.id,
+          tripId:       m.tripId,
+          userId:       m.userId,
+          status:       m.status,
+          isInvitation: m.isInvitation,
+          isCreator:    false,
+          createdAt:    m.createdAt,
+          user: {
+            userId:     m.User.id,
+            firstName:  m.User.firstName,
+            lastName:   m.User.lastName,
+            email:      m.User.email,
+            sportType:  m.User.sportType,
+            skillLevel: m.User.skillLevel
+          }
+        }))
+      ],
       error: null
     });
   } catch (err) {

@@ -57,6 +57,7 @@ function ResortCard({ resort, onClick, rank }) {
     terrainType,
     difficultyLevel,
     snowboardFriendly,
+    imageUrl,
   } = resort;
 
   const flag        = COUNTRY_FLAGS[country] ?? '🌍';
@@ -66,15 +67,19 @@ function ResortCard({ resort, onClick, rank }) {
   return (
     <article
       className="card"
-      style={styles.card}
+      style={imageUrl ? { ...styles.card, ...styles.cardWithImage } : styles.card}
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
       aria-label={`${name} resort card`}
     >
-      {/* ── Top accent bar (colour varies by difficulty) ── */}
-      <div style={{ ...styles.accentBar, background: accentGradient(difficultyLevel) }} aria-hidden="true" />
+      {imageUrl ? (
+        <img src={imageUrl} alt={name} loading="lazy" style={styles.coverImage} />
+      ) : (
+        /* ── Top accent bar (colour varies by difficulty) — fallback when no image ── */
+        <div style={{ ...styles.accentBar, background: accentGradient(difficultyLevel) }} aria-hidden="true" />
+      )}
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div style={styles.header}>
@@ -174,6 +179,19 @@ const styles = {
     gap: '1rem',
     cursor: 'default',
     paddingTop: '1.25rem',
+  },
+  cardWithImage: {
+    paddingTop: 0,
+  },
+  coverImage: {
+    display: 'block',
+    width: 'calc(100% + 2 * var(--space-xl))',
+    maxWidth: 'calc(100% + 2 * var(--space-xl))',
+    height: 150,
+    objectFit: 'cover',
+    objectPosition: 'center center',
+    margin: 'calc(-1 * var(--space-xl)) calc(-1 * var(--space-xl)) 0',
+    borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
   },
   accentBar: {
     position: 'absolute',
