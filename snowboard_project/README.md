@@ -169,7 +169,10 @@ Get a free Groq key at https://console.groq.com → API Keys.
 | Backend API + Socket.IO | http://localhost:3000 |
 | Frontend dev server | http://localhost:5173 |
 
+
+
 ---
+
 ## Demo Credentials
 
 | Role | Email | Password |
