@@ -182,6 +182,9 @@ function TripDetailsPage() {
   };
 
   // ── Resort assistant ─────────────────────────────────────────────────────────
+  // Personalize for whoever is CURRENTLY viewing the page — the current user's
+  // own profile takes priority; trip-level values are only a fallback when the
+  // viewer's own profile doesn't have them set.
   const handleAssistant = async (locType) => {
     if (!resort) return;
     setAssistantType(locType);
@@ -190,7 +193,17 @@ function TripDetailsPage() {
     setAssistantError('');
     try {
       const data = await getResortAssistant(
-        { resortId: resort.resortId, locationType: locType, sportType: user?.sportType ?? 'snowboard' },
+        {
+          resortId:      resort.resortId,
+          locationType:  locType,
+          sportType:     user?.sportType  ?? trip.sportType  ?? 'snowboard',
+          skillLevel:    user?.skillLevel ?? trip.skillLevel ?? 3,
+          startDate:     trip.startDate,
+          endDate:       trip.endDate,
+          weatherSummary: forecast?.summary
+            ? { ...forecast.summary, confidence: forecast.confidence }
+            : undefined,
+        },
         role
       );
       setAssistantResult(data);
@@ -617,32 +630,58 @@ function TripDetailsPage() {
 
         {!assistantLoading && assistantResult && (
           <div style={styles.assistantResult}>
+            <h3 style={styles.assistantResultHeading}>
+              Recommended {assistantType.charAt(0).toUpperCase() + assistantType.slice(1)}s for Your Trip
+            </h3>
+
             {assistantResult.aiGenerated === false && (
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
                 ℹ️ AI advisor unavailable right now — showing a standard tip.
               </p>
             )}
+
             <div style={styles.generalTip}>
               <span aria-hidden="true">💡</span>
-              <p>{assistantResult.generalTip}</p>
+              <p>{assistantResult.summary}</p>
             </div>
-            {assistantResult.inResortSpots?.length > 0 && (
-              <div style={{ marginTop: '0.85rem' }}>
-                <div style={styles.spotsLabel}>Recommended spots:</div>
-                <ul style={{ paddingLeft: '1.25rem', margin: 0 }}>
-                  {assistantResult.inResortSpots.map(spot => (
-                    <li key={spot.locationId} style={styles.spotItem}>
-                      <strong>{spot.name}</strong>
-                      {spot.description && ` — ${spot.description}`}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+
+            {assistantResult.recommendations?.length > 0 && (
+              <ol style={styles.recommendationList}>
+                {assistantResult.recommendations.map((rec, i) => (
+                  <li key={`${rec.name}-${i}`} style={styles.recommendationCard}>
+                    <div style={styles.recommendationHeader}>
+                      <strong style={styles.recommendationName}>{rec.name}</strong>
+                      {rec.bestFor && <span style={styles.bestForPill}>{rec.bestFor}</span>}
+                    </div>
+                    <p style={styles.recommendationReason}>{rec.reason}</p>
+                    {rec.weatherNote && (
+                      <p style={styles.weatherNote}>🌤️ {rec.weatherNote}</p>
+                    )}
+                  </li>
+                ))}
+              </ol>
             )}
-            {assistantResult.inResortSpots?.length === 0 && (
-              <p style={{ fontSize: '0.83rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-                No specific {assistantType} spots found in our database for this resort.
-              </p>
+
+            {assistantResult.recommendations?.length === 0 && (
+              assistantResult.inResortSpots?.length > 0 ? (
+                <div style={{ marginTop: '0.85rem' }}>
+                  <div style={styles.spotsLabel}>
+                    No specific recommendations yet — here's what we know about this resort's {assistantType}s:
+                  </div>
+                  <ul style={{ paddingLeft: '1.25rem', margin: 0 }}>
+                    {assistantResult.inResortSpots.map(spot => (
+                      <li key={spot.locationId} style={styles.spotItem}>
+                        <strong>{spot.name}</strong>
+                        {spot.description && ` — ${spot.description}`}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p style={{ fontSize: '0.83rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                  No specific {assistantType} spots found in our database for this resort.
+                </p>
+              )
             )}
           </div>
         )}
@@ -792,6 +831,41 @@ const styles = {
   spotItem: {
     fontSize: '0.85rem', color: 'var(--text-secondary)',
     lineHeight: 1.5, marginBottom: '0.25rem',
+  },
+  assistantResultHeading: {
+    fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)',
+    marginBottom: '0.75rem',
+  },
+  recommendationList: {
+    listStyle: 'decimal', paddingLeft: '1.25rem', margin: '0.85rem 0 0',
+    display: 'flex', flexDirection: 'column', gap: '0.6rem',
+  },
+  recommendationCard: {
+    padding: '0.75rem 0.9rem',
+    background: 'rgba(255,255,255,0.03)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 'var(--radius-md)',
+  },
+  recommendationHeader: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.3rem',
+  },
+  recommendationName: {
+    fontSize: '0.9rem', color: 'var(--text-primary)',
+  },
+  bestForPill: {
+    fontSize: '0.7rem', fontWeight: 700,
+    color: 'var(--accent-light)', background: 'rgba(79,142,247,0.12)',
+    padding: '0.15rem 0.55rem', borderRadius: 'var(--radius-full)',
+    flexShrink: 0,
+  },
+  recommendationReason: {
+    fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.55,
+    margin: 0,
+  },
+  weatherNote: {
+    fontSize: '0.78rem', color: 'var(--text-muted)',
+    margin: '0.4rem 0 0',
   },
 
   // Members section

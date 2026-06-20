@@ -270,8 +270,11 @@ export const getResortSummary = (payload) =>
 /**
  * POST /resort-assistant
  * Requires x-user-role header (any valid role).
- * Payload: { resortId, locationType, sportType }
- * Returns { resortId, resortName, generalTip, aiGenerated, inResortSpots }
+ * Payload: { resortId, locationType, sportType, skillLevel?, startDate?, endDate?, weatherSummary? }
+ *   — skillLevel/startDate/endDate/weatherSummary are optional trip context;
+ *     prefer trip-level values over the viewer's profile defaults when calling.
+ * Returns { resortId, resortName, locationType, sportType, skillLevel, aiGenerated,
+ *           summary, recommendations: [{name, reason, bestFor, weatherNote}], inResortSpots }
  */
 export const getResortAssistant = (payload, role) =>
   request('/resort-assistant', {

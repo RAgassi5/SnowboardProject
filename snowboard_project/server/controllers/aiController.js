@@ -204,9 +204,23 @@ List 6–8 specific gear items tailored to this resort and rider. Include a "war
 };
 
 // ── POST /resort-assistant ────────────────────────────────────────────────────
+// Rule-based fallback: turn real DB location rows into simple recommendation
+// entries (still real data, just not AI-ranked/justified).
+function fallbackRecommendations(matchingLocations) {
+  return matchingLocations.slice(0, 3).map(l => ({
+    name:        l.name,
+    reason:      l.description || `One of the known spots at this resort.`,
+    bestFor:     null,
+    weatherNote: null,
+  }));
+}
+
 const resortAssistant = async (req, res, next) => {
   try {
-    const { resortId, locationType, sportType } = req.body;
+    const {
+      resortId, locationType, sportType,
+      skillLevel, startDate, endDate, weatherSummary,
+    } = req.body;
 
     if (!resortId)     return res.status(400).json({ success: false, data: null, error: { code: 'VALIDATION_ERROR', message: 'resortId is required.',     details: { field: 'resortId'     } } });
     if (!locationType) return res.status(400).json({ success: false, data: null, error: { code: 'VALIDATION_ERROR', message: 'locationType is required.',  details: { field: 'locationType'  } } });
@@ -216,6 +230,14 @@ const resortAssistant = async (req, res, next) => {
     const validTypes = Object.keys(LOCATION_SUGGESTIONS);
     if (!validTypes.includes(locationType)) return res.status(400).json({ success: false, data: null, error: { code: 'VALIDATION_ERROR', message: `locationType must be one of: ${validTypes.join(', ')}.`, details: { field: 'locationType' } } });
 
+    // skillLevel is optional context — validate only when provided, default to 3 (Intermediate)
+    let skillLevelInt = 3;
+    if (skillLevel !== undefined && skillLevel !== null && skillLevel !== '') {
+      const parsed = parseAndValidateSkillLevel(skillLevel);
+      if (parsed === null) return res.status(400).json({ success: false, data: null, error: { code: 'VALIDATION_ERROR', message: 'skillLevel must be an integer between 1 and 5.', details: { field: 'skillLevel' } } });
+      skillLevelInt = parsed;
+    }
+
     const resort = await Resort.findByPk(parseInt(resortId));
     if (!resort) return res.status(404).json({ success: false, data: null, error: { code: 'NOT_FOUND', message: `Resort with id ${resortId} not found.`, details: {} } });
 
@@ -223,18 +245,46 @@ const resortAssistant = async (req, res, next) => {
       where: { resortId: resort.id, type: locationType },
     });
 
-    let generalTip  = LOCATION_SUGGESTIONS[locationType][sportType]; // fallback
-    let aiGenerated = false;
+    let summary         = LOCATION_SUGGESTIONS[locationType][sportType]; // fallback
+    let recommendations = fallbackRecommendations(matchingLocations);
+    let aiGenerated      = false;
+
     try {
-      const locationNames = matchingLocations.length > 0
-        ? matchingLocations.map(l => l.name).join(', ')
+      const locationLines = matchingLocations.length > 0
+        ? matchingLocations.map(l => `${l.name}${l.description ? ` — ${l.description}` : ''}`).join('\n')
         : 'none on record';
-      const system = `You are an expert in-resort ${sportType} advisor. Give practical, sport-specific 1–2 sentence tips. Be concise and actionable. No generic advice.`;
-      const user   = `Resort: ${resort.name} (${resort.country}), ${resort.terrainType} terrain, ${resort.elevation}m elevation.
-Location type: ${locationType}s. Known ${locationType}s at this resort: ${locationNames}.
-Write 1–2 sentences of practical ${sportType}-specific advice for visiting ${locationType}s at this resort.`;
-      generalTip  = (await chat(system, user, { maxTokens: 150, temperature: 0.6 })).trim();
-      aiGenerated = true;
+
+      const contextLines = [
+        `Resort: ${resort.name} (${resort.country}), ${resort.terrainType} terrain, ${resort.elevation}m elevation.`,
+        `Rider: Level ${skillLevelInt}/5 (${SKILL_LEVEL_LABELS[skillLevelInt]}) ${sportType}er.`,
+      ];
+      if (startDate && endDate) contextLines.push(`Trip dates: ${startDate} to ${endDate}.`);
+      if (weatherSummary) {
+        const { avgTempMin, avgTempMax, totalSnowfall, avgWindMax, confidence } = weatherSummary;
+        const parts = [];
+        if (avgTempMin != null && avgTempMax != null) parts.push(`avg temps ${avgTempMin}°C to ${avgTempMax}°C`);
+        if (totalSnowfall != null) parts.push(`${totalSnowfall}cm total snowfall`);
+        if (avgWindMax != null) parts.push(`${avgWindMax}km/h avg wind`);
+        if (parts.length > 0) contextLines.push(`Weather forecast (${confidence ?? 'unknown'} confidence): ${parts.join(', ')}.`);
+      }
+      contextLines.push(`Location type: ${locationType}s. Known ${locationType}s at this resort:\n${locationLines}`);
+
+      const system = `You are an expert in-resort ${sportType} concierge helping a rider plan their day at a specific resort. Return ONLY a valid JSON object with two keys: "summary" (a 1-sentence practical overview string) and "recommendations" (an array of 2-3 objects, each with "name", "reason" (1-2 sentences, specific — mention skill/weather/terrain fit as relevant), "bestFor" (a short phrase, e.g. "first run of the day", "group freestyle laps"), and "weatherNote" (a short string, or null if not weather-relevant)). Only recommend locations from the provided known-locations list, each at most once — never repeat the same name. If that list is "none on record", return an empty "recommendations" array and put practical general advice in "summary" instead. Be specific and actionable. No generic advice, no markdown.`;
+      const user = `${contextLines.join('\n')}\n\nRank and recommend ${locationType}s for this trip.`;
+
+      const raw    = await chat(system, user, { maxTokens: 450, temperature: 0.6, json: true });
+      const parsed = JSON.parse(raw);
+      if (typeof parsed.summary === 'string' && Array.isArray(parsed.recommendations)) {
+        summary = parsed.summary;
+        // Defensive dedupe — the model occasionally repeats the same location.
+        const seen = new Set();
+        recommendations = parsed.recommendations.filter(r => {
+          if (!r?.name || seen.has(r.name)) return false;
+          seen.add(r.name);
+          return true;
+        });
+        aiGenerated = true;
+      }
     } catch (_) { /* keep rule-based fallback */ }
 
     return res.status(200).json({
@@ -243,8 +293,10 @@ Write 1–2 sentences of practical ${sportType}-specific advice for visiting ${l
         resortId:      resort.id,
         resortName:    resort.name,
         sportType,
+        skillLevel:    skillLevelInt,
         locationType,
-        generalTip,
+        summary,
+        recommendations,
         aiGenerated,
         inResortSpots: matchingLocations.map((l) => ({
           locationId:  l.id,
