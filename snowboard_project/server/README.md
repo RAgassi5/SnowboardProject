@@ -23,6 +23,7 @@ Node.js + Express REST API with Socket.IO real-time layer and Groq LLM AI featur
   - [Social — Friends](#social--friends)
   - [AI Features](#ai-features)
   - [Dashboard](#dashboard)
+- [Postman Collection](#postman-collection)
 - [Socket.IO Events](#socketio-events)
 - [Database Models](#database-models)
 - [Error Codes](#error-codes)
@@ -454,6 +455,18 @@ Response `data`: `{ nextTrip, attentionItems, aiSuggestions, conditionsWatch, re
 
 ---
 
+## Postman Collection
+
+A ready-to-import Postman collection covering every route group documented above (Auth, Users, Resorts, Trips, Trip Members, Resort Locations, Social — Friends, AI Features, Dashboard) is checked into this repo at:
+
+```
+server/docs/SnowTrip-Planner.postman_collection.json
+```
+
+Import it directly into Postman. It defines four collection variables: `baseUrl` (defaults to `http://localhost:3000`), and `adminId` / `managerId` / `userId`, pre-filled to match the seeded demo accounts (see root `README.md` → Demo Credentials).
+
+---
+
 ## Socket.IO Events
 
 Connect to `http://localhost:3000` with auth:
@@ -482,8 +495,9 @@ const socket = io('http://localhost:3000', { auth: { userId: 3 } });
 | `chat:unread-update` | `{ tripId, count }` | Updated unread-message count for a trip, sent to a specific user's socket on join-clear or on a new message to a participant not currently viewing the chat |
 | `friend:request` | `{ requestId, senderId, firstName, lastName }` | Sent to the receiver if online, when a friend request is sent or re-sent (`friendController.js`, not `socket.js`) |
 | `trip:join-request` | `{ memberId, tripId, userId, firstName, lastName }` | Sent to the trip creator if online, when someone requests to join their trip (`tripMemberController.js`, not `socket.js`) |
+| `trip:invitation` | `{ memberId, tripId, inviterFirstName, inviterLastName }` | Sent to an invited user if online, when a trip creator invites them (`tripMemberController.js`'s `inviteFriend()`, not `socket.js`) |
 
-> **Note:** `friend:request` and `trip:join-request` are not registered in `socket.js`'s connection handler — they are emitted directly from `friendController.js` and `tripMemberController.js` via `getIO()` / `getUserSocketId()` (imported from `../socket`), at the point the underlying REST request succeeds. `friend:request` is consumed by `Navbar.jsx`, `ProfilePanel.jsx`, and `FriendsPage.jsx` to refresh their friend-request state. `trip:join-request` is consumed by `Navbar.jsx` (combined request badge), `DashboardPage.jsx` (Requires Attention card), and `TripDetailsPage.jsx` (pending member list, when the creator is viewing that trip) to refresh their join-request state live.
+> **Note:** `friend:request`, `trip:join-request`, and `trip:invitation` are not registered in `socket.js`'s connection handler — they are emitted directly from `friendController.js` and `tripMemberController.js` via `getIO()` / `getUserSocketId()` (imported from `../socket`), at the point the underlying REST request succeeds. `friend:request` is consumed by `Navbar.jsx`, `ProfilePanel.jsx`, and `FriendsPage.jsx` to refresh their friend-request state. `trip:join-request` is consumed by `Navbar.jsx` (combined request badge), `DashboardPage.jsx` (Requires Attention card), and `TripDetailsPage.jsx` (pending member list, when the creator is viewing that trip) to refresh their join-request state live. **`trip:invitation` currently has no frontend listener** — the invitation is still visible to the invitee via `TripsPage.jsx`'s REST fetch (`getUserInvitations`) on page load, it just isn't live-pushed yet.
 
 ---
 

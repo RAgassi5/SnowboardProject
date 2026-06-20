@@ -14,6 +14,7 @@ A full-stack web application for planning ski and snowboard trips. Users browse 
 - [Environment Variables](#environment-variables)
 - [Database Setup](#database-setup)
 - [Default Ports](#default-ports)
+- [API Testing (Postman)](#api-testing-postman)
 - [Demo Credentials](#demo-credentials)
 - [Features and Pages](#features-and-pages)
 - [Real-Time Features (Socket.IO)](#real-time-features-socketio)
@@ -171,6 +172,18 @@ Get a free Groq key at https://console.groq.com → API Keys.
 
 ---
 
+## API Testing (Postman)
+
+A ready-to-import Postman collection covering every route group (Auth, Users, Friends, Trips, Trip Members, Resorts, Resort Locations, AI Features, Dashboard) lives at:
+
+```
+server/docs/SnowTrip-Planner.postman_collection.json
+```
+
+Import it into Postman, then set the collection's `baseUrl` variable to `http://localhost:3000` (already the default) — the `adminId`/`managerId`/`userId` variables are pre-filled to match the seeded demo accounts above.
+
+---
+
 ## Demo Credentials
 
 | Role | Email | Password |
@@ -217,6 +230,7 @@ The backend exposes a Socket.IO server on port 3000. The frontend connects autom
 | `chat:unread-update` | server → client | Pushes an updated unread-message count for a trip to a specific user's socket (sent on join-clear and on new messages to participants not currently viewing the chat) |
 | `friend:request` | server → client | Sent when someone sends or re-sends you a friend request, if you're online. Emitted directly from `friendController.js` (not `socket.js`'s connection handler) via `getIO()`/`getUserSocketId()`. Triggers a badge/list refresh in `Navbar.jsx`, `ProfilePanel.jsx`, and `FriendsPage.jsx`. |
 | `trip:join-request` | server → client | Sent to a trip's creator when someone requests to join, if the creator is online. Emitted directly from `tripMemberController.js`. Triggers a live badge/data refresh in `Navbar.jsx` (combined request badge), `DashboardPage.jsx` (Requires Attention card), and `TripDetailsPage.jsx` (pending member list), if the creator is on that page. |
+| `trip:invitation` | server → client | Sent to an invited user when a trip creator invites them, if they're online. Emitted directly from `tripMemberController.js`'s `inviteFriend()`. **Note:** no frontend listener currently consumes this event in real time — the invitation itself is still visible via `TripsPage.jsx`'s REST fetch (`getUserInvitations`) on page load/reload, it just isn't live-pushed like `trip:join-request` is. |
 
 ### Socket Authentication
 
