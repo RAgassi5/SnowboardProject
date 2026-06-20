@@ -8,7 +8,7 @@ import ProfilePanel from './ProfilePanel';
 const getNavLinks = (userRole) => {
   const links = [
     { to: '/dashboard', label: 'Dashboard', icon: '🏠' },
-    { to: '/plan-trip', label: 'Plan Trip',  icon: '🎯' },
+    { to: '/plan-trip', label: 'AI Picks',   icon: '🎯' },
     { to: '/trips',     label: 'My Trips',   icon: '📋' },
     { to: '/discover',  label: 'Discover',   icon: '🔍' },
     { to: '/resorts',   label: 'Resorts',    icon: '⛷️'  },
