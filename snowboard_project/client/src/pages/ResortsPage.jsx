@@ -218,7 +218,7 @@ function ResortsPage() {
           emptyMessage={
             search
               ? `No resorts match "${search}".`
-              : 'No resorts found. Make sure the backend is running.'
+              : 'No resorts found. Try refreshing the page.'
           }
         />
       )}
