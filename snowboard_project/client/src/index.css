@@ -300,6 +300,12 @@ p {
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
 }
 
+/* Force readable colors on native <option> popups (fixes Windows Chrome/Edge) */
+select option {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+}
+
 .form-error {
   font-size: 0.8rem;
   color: #fca5a5;

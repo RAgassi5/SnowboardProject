@@ -91,7 +91,7 @@ const request = async (path, options = {}) => {
   } catch (networkErr) {
     // Network failure (e.g. backend not running)
     throw new Error(
-      'Cannot connect to the server. Please make sure the backend is running on http://localhost:3000'
+      'Cannot connect to the server. Please check your connection and try again.'
     );
   }
 
