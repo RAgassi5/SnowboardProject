@@ -91,8 +91,8 @@ function SettingsPage() {
 
       setSuccessMsg(
         canEdit
-          ? '✅ Profile updated in both the backend and your local session.'
-          : '✅ Sport type and skill level saved locally. Name changes require admin/manager role.'
+          ? '✅ Your profile has been updated successfully.'
+          : '✅ Your preferences have been saved.'
       );
     } catch (err) {
       setServerError(err.message);
@@ -160,7 +160,7 @@ function SettingsPage() {
                 <div>
                   <strong>Limited editing.</strong> You are logged in as{' '}
                   <strong>{role}</strong>. Name and role changes require an admin or manager account.
-                  Sport type and skill level are saved to your local session and pre-fill the Plan Trip form.
+                  These will pre-fill your Plan Trip form and personalise recommendations.
                 </div>
               </div>
             )}
@@ -216,7 +216,7 @@ function SettingsPage() {
               <h3 style={styles.prefTitle}>Trip Preferences</h3>
               <p style={styles.prefSub}>
                 These pre-fill your Plan Trip form and personalise recommendations.
-                Saved to your local session.
+                These will pre-fill your Plan Trip form.
               </p>
 
               {/* Sport type */}
