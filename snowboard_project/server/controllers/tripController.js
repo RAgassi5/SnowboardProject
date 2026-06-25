@@ -160,7 +160,10 @@ const createTrip = async (req, res, next) => {
 // PUT /trips/:id
 const updateTrip = async (req, res, next) => {
   try {
-    const id = parseInt(req.params.id);
+    const id         = parseInt(req.params.id);
+    const callerRole = req.headers['x-user-role'];
+    const callerId   = parseInt(req.headers['x-user-id']);
+
     const trip = await Trip.findByPk(id);
     if (!trip) {
       return res.status(404).json({
@@ -169,18 +172,22 @@ const updateTrip = async (req, res, next) => {
       });
     }
 
-    const { userId, resortId, startDate, endDate } = req.body;
-
-    const requiredFields = ['userId', 'resortId', 'startDate', 'endDate'];
-    for (const field of requiredFields) {
-      if (req.body[field] === undefined || req.body[field] === null || req.body[field] === '') {
-        return res.status(400).json({
-          success: false, data: null,
-          error: { code: 'VALIDATION_ERROR', message: `${field} is required.`, details: { field } }
-        });
-      }
+    // Only the trip creator or an admin may update
+    if (callerRole !== 'admin' && (isNaN(callerId) || trip.userId !== callerId)) {
+      return res.status(403).json({
+        success: false, data: null,
+        error: { code: 'FORBIDDEN', message: 'Only the trip creator can edit this trip.', details: {} }
+      });
     }
 
+    const { startDate, endDate, title, skillLevel, sportType, privacy, maxMembers } = req.body;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false, data: null,
+        error: { code: 'VALIDATION_ERROR', message: 'startDate and endDate are required.', details: {} }
+      });
+    }
     if (isNaN(new Date(startDate))) {
       return res.status(400).json({
         success: false, data: null,
@@ -200,23 +207,14 @@ const updateTrip = async (req, res, next) => {
       });
     }
 
-    const userExists = await User.findByPk(parseInt(userId));
-    if (!userExists) {
-      return res.status(404).json({
-        success: false, data: null,
-        error: { code: 'NOT_FOUND', message: `User with id ${userId} not found.`, details: {} }
-      });
-    }
+    const updates = { startDate, endDate };
+    if (title      !== undefined) updates.title      = title || null;
+    if (skillLevel !== undefined) updates.skillLevel = skillLevel ? parseInt(skillLevel) : null;
+    if (sportType  !== undefined) updates.sportType  = sportType  || null;
+    if (privacy    !== undefined) updates.privacy    = privacy    || 'public';
+    if (maxMembers !== undefined) updates.maxMembers = maxMembers ? parseInt(maxMembers) : null;
 
-    const resortExists = await Resort.findByPk(parseInt(resortId));
-    if (!resortExists) {
-      return res.status(404).json({
-        success: false, data: null,
-        error: { code: 'NOT_FOUND', message: `Resort with id ${resortId} not found.`, details: {} }
-      });
-    }
-
-    await trip.update({ userId: parseInt(userId), resortId: parseInt(resortId), startDate, endDate });
+    await trip.update(updates);
     return res.status(200).json({ success: true, data: { tripId: id }, error: null });
   } catch (err) {
     next(err);

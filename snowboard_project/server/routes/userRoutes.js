@@ -52,8 +52,8 @@ router.get("/:id", auth(["admin", "manager"]), getUserById);
 // POST /users            → admin, manager only
 router.post("/", auth(["admin", "manager"]), createUser);
 
-// PUT /users/:id         → admin, manager only
-router.put("/:id", auth(["admin", "manager"]), updateUser);
+// PUT /users/:id         → any authenticated user (ownership enforced in controller)
+router.put("/:id", auth(ANY), updateUser);
 
 // DELETE /users/:id      → admin only
 router.delete("/:id", auth(["admin"]), deleteUser);
