@@ -68,16 +68,16 @@ function SettingsPage() {
     setServerError('');
     setSuccessMsg('');
     try {
-      // ── Backend update (firstName, lastName, userRole) — admin/manager only ──
-      if (canEdit) {
-        await updateUser(user.userId, {
-          firstName: form.firstName.trim(),
-          lastName:  form.lastName.trim(),
-          userRole:  form.userRole,
-        }, role);
-      }
+      // ── Persist all profile fields to the backend for every role ──
+      await updateUser(user.userId, {
+        firstName:  form.firstName.trim(),
+        lastName:   form.lastName.trim(),
+        userRole:   form.userRole,
+        sportType:  form.sportType,
+        skillLevel: parseInt(form.skillLevel),
+      }, role);
 
-      // ── Always save all fields to localStorage (including sportType + skillLevel) ──
+      // ── Also save to localStorage so the UI reflects changes immediately ──
       const updated = {
         ...user,
         firstName:  form.firstName.trim(),
@@ -89,11 +89,7 @@ function SettingsPage() {
       };
       localStorage.setItem('snowtrip_user', JSON.stringify(updated));
 
-      setSuccessMsg(
-        canEdit
-          ? '✅ Your profile has been updated successfully.'
-          : '✅ Your preferences have been saved.'
-      );
+      setSuccessMsg('✅ Your profile has been updated successfully.');
     } catch (err) {
       setServerError(err.message);
     } finally {
@@ -159,8 +155,8 @@ function SettingsPage() {
                 <span>🔒</span>
                 <div>
                   <strong>Limited editing.</strong> You are logged in as{' '}
-                  <strong>{role}</strong>. Name and role changes require an admin or manager account.
-                  These will pre-fill your Plan Trip form and personalise recommendations.
+                  <strong>{role}</strong>. Role changes require an admin or manager account.
+                  Name and trip preferences can be updated by all users.
                 </div>
               </div>
             )}
@@ -182,7 +178,7 @@ function SettingsPage() {
                   <input id="s-firstName" name="firstName" type="text"
                     className={`form-input ${fieldErrors.firstName ? 'error' : ''}`}
                     value={form.firstName} onChange={handleChange}
-                    disabled={!canEdit || loading} autoComplete="given-name" />
+                    disabled={loading} autoComplete="given-name" />
                   {fieldErrors.firstName && (
                     <span className="form-error" role="alert">⚠ {fieldErrors.firstName}</span>
                   )}
@@ -192,7 +188,7 @@ function SettingsPage() {
                   <input id="s-lastName" name="lastName" type="text"
                     className={`form-input ${fieldErrors.lastName ? 'error' : ''}`}
                     value={form.lastName} onChange={handleChange}
-                    disabled={!canEdit || loading} autoComplete="family-name" />
+                    disabled={loading} autoComplete="family-name" />
                   {fieldErrors.lastName && (
                     <span className="form-error" role="alert">⚠ {fieldErrors.lastName}</span>
                   )}

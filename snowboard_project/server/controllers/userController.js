@@ -53,7 +53,18 @@ const createUser = async (req, res, next) => {
 // PUT /users/:id
 const updateUser = async (req, res, next) => {
   try {
-    const id = parseInt(req.params.id);
+    const id         = parseInt(req.params.id);
+    const callerId   = parseInt(req.headers['x-user-id']);
+    const callerRole = req.headers['x-user-role'];
+
+    // Regular users may only update their own record
+    if (callerRole === 'user' && callerId !== id) {
+      return res.status(403).json({
+        success: false, data: null,
+        error: { code: 'FORBIDDEN', message: 'You can only update your own profile.', details: {} }
+      });
+    }
+
     const user = await User.findByPk(id);
     if (!user) {
       return res.status(404).json({
@@ -62,18 +73,26 @@ const updateUser = async (req, res, next) => {
       });
     }
 
-    const { firstName, lastName, userRole } = req.body;
-    const requiredFields = ['firstName', 'lastName', 'userRole'];
-    for (const field of requiredFields) {
-      if (!req.body[field]) {
-        return res.status(400).json({
-          success: false, data: null,
-          error: { code: 'VALIDATION_ERROR', message: `${field} is required.`, details: { field } }
-        });
-      }
+    const { firstName, lastName, userRole, sportType, skillLevel } = req.body;
+
+    if (!firstName || !lastName) {
+      return res.status(400).json({
+        success: false, data: null,
+        error: { code: 'VALIDATION_ERROR', message: 'firstName and lastName are required.', details: {} }
+      });
     }
 
-    await user.update({ firstName, lastName, userRole });
+    const updates = { firstName, lastName };
+
+    if (sportType  !== undefined) updates.sportType  = sportType;
+    if (skillLevel !== undefined) updates.skillLevel = parseInt(skillLevel);
+
+    // Only admin/manager may change userRole
+    if (userRole !== undefined && (callerRole === 'admin' || callerRole === 'manager')) {
+      updates.userRole = userRole;
+    }
+
+    await user.update(updates);
     return res.status(200).json({ success: true, data: { userId: id }, error: null });
   } catch (err) {
     next(err);

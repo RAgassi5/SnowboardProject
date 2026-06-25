@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   getTripById, getResortById, getResortForecast,
   getResortLocations, getResortAssistant, getResortSummary,
-  getStoredUser, getStoredRole, deleteTrip,
+  getStoredUser, getStoredRole, deleteTrip, updateTrip,
   getTripMembers, approveTripMember, rejectTripMember, removeTripMember,
   getFriends, inviteFriendToTrip,
 } from '../services/api';
@@ -76,6 +76,13 @@ function TripDetailsPage() {
   // Delete
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting,          setDeleting]          = useState(false);
+
+  // Edit
+  const [showEditForm,  setShowEditForm]  = useState(false);
+  const [editForm,      setEditForm]      = useState({});
+  const [editSaving,    setEditSaving]    = useState(false);
+  const [editError,     setEditError]     = useState('');
+  const [editSuccess,   setEditSuccess]   = useState('');
 
   // Members
   const [members,           setMembers]           = useState([]);
@@ -167,6 +174,63 @@ function TripDetailsPage() {
     }
   };
 
+  // ── Edit trip ─────────────────────────────────────────────────────────────────
+  const openEditForm = () => {
+    setEditForm({
+      startDate:  trip.startDate  ?? '',
+      endDate:    trip.endDate    ?? '',
+      title:      trip.title      ?? '',
+      skillLevel: (trip.skillLevel ?? '').toString(),
+      sportType:  trip.sportType  ?? '',
+      privacy:    trip.privacy    ?? 'public',
+      maxMembers: trip.maxMembers != null ? trip.maxMembers.toString() : '',
+    });
+    setEditError('');
+    setEditSuccess('');
+    setShowEditForm(true);
+  };
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setEditForm(p => ({ ...p, [name]: value }));
+    if (editError) setEditError('');
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!editForm.startDate || !editForm.endDate) {
+      setEditError('Start date and end date are required.');
+      return;
+    }
+    if (editForm.startDate >= editForm.endDate) {
+      setEditError('End date must be after start date.');
+      return;
+    }
+    setEditSaving(true);
+    setEditError('');
+    setEditSuccess('');
+    try {
+      await updateTrip(trip.tripId, {
+        startDate:  editForm.startDate,
+        endDate:    editForm.endDate,
+        title:      editForm.title      || null,
+        skillLevel: editForm.skillLevel ? parseInt(editForm.skillLevel) : null,
+        sportType:  editForm.sportType  || null,
+        privacy:    editForm.privacy    || 'public',
+        maxMembers: editForm.maxMembers ? parseInt(editForm.maxMembers) : null,
+      }, role);
+      // Refresh trip data in-place
+      const updated = await getTripById(trip.tripId);
+      setTrip(updated);
+      setEditSuccess('✅ Trip updated successfully.');
+      setTimeout(() => { setShowEditForm(false); setEditSuccess(''); }, 1200);
+    } catch (err) {
+      setEditError(err.message);
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   // ── Invite friend ─────────────────────────────────────────────────────────────
   const handleInvite = async (friendUserId) => {
     setInviting(s => ({ ...s, [friendUserId]: true }));
@@ -253,6 +317,16 @@ function TripDetailsPage() {
           id="back-to-trips" style={{ fontSize: '0.85rem' }}>
           ← Back to My Trips
         </button>
+        {isCreator && (
+          <button
+            id="edit-trip-btn"
+            className="btn btn-secondary"
+            onClick={showEditForm ? () => setShowEditForm(false) : openEditForm}
+            style={{ fontSize: '0.85rem' }}
+          >
+            {showEditForm ? '✕ Cancel Edit' : '✏️ Edit Trip'}
+          </button>
+        )}
         {(isCreator || role === 'admin') && (
           <button
             id="delete-trip-btn"
@@ -265,6 +339,109 @@ function TripDetailsPage() {
           </button>
         )}
       </div>
+
+      {/* ── Edit trip form ────────────────────────────────────────────────── */}
+      {showEditForm && (
+        <section className="card" style={{ marginBottom: '1.5rem' }} aria-label="Edit trip">
+          <h2 style={styles.sectionTitle}>✏️ Edit Trip</h2>
+
+          {editError   && <div className="alert alert-error"   style={{ marginBottom: '1rem' }}><span>⚠</span><span>{editError}</span></div>}
+          {editSuccess && <div className="alert alert-success" style={{ marginBottom: '1rem' }}><span>✅</span><span>{editSuccess}</span></div>}
+
+          <form onSubmit={handleEditSubmit} noValidate>
+            {/* Dates */}
+            <div style={styles.editRow}>
+              <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                <label className="form-label">Start Date</label>
+                <input type="date" name="startDate" className="form-input"
+                  value={editForm.startDate} onChange={handleEditChange} disabled={editSaving} />
+              </div>
+              <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                <label className="form-label">End Date</label>
+                <input type="date" name="endDate" className="form-input"
+                  value={editForm.endDate} onChange={handleEditChange} disabled={editSaving} />
+              </div>
+            </div>
+
+            {/* Title */}
+            <div className="form-group" style={{ marginTop: '1rem' }}>
+              <label className="form-label">Title <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></label>
+              <input type="text" name="title" className="form-input" maxLength={200}
+                placeholder="e.g. Family ski week"
+                value={editForm.title} onChange={handleEditChange} disabled={editSaving} />
+            </div>
+
+            {/* Sport + Skill */}
+            <div style={styles.editRow}>
+              <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                <label className="form-label">Sport Type</label>
+                <div style={{ display: 'flex', gap: '0.6rem' }}>
+                  {['ski', 'snowboard'].map(s => (
+                    <label key={s} style={{
+                      flex: 1, textAlign: 'center', padding: '0.55rem',
+                      borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                      fontSize: '0.85rem', fontWeight: 600,
+                      border: editForm.sportType === s
+                        ? '1px solid var(--accent-primary)'
+                        : '1px solid var(--border-subtle)',
+                      background: editForm.sportType === s
+                        ? 'rgba(79,142,247,0.12)' : 'rgba(255,255,255,0.03)',
+                      color: editForm.sportType === s
+                        ? 'var(--accent-light)' : 'var(--text-secondary)',
+                    }}>
+                      <input type="radio" name="sportType" value={s}
+                        checked={editForm.sportType === s} onChange={handleEditChange}
+                        disabled={editSaving} style={{ display: 'none' }} />
+                      {s === 'ski' ? '⛷️ Ski' : '🏂 Snowboard'}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                <label className="form-label">Skill Level</label>
+                <select name="skillLevel" className="form-input"
+                  value={editForm.skillLevel} onChange={handleEditChange} disabled={editSaving}>
+                  <option value="">— not set —</option>
+                  <option value="1">1 — First-Timer</option>
+                  <option value="2">2 — Novice</option>
+                  <option value="3">3 — Intermediate</option>
+                  <option value="4">4 — Expert</option>
+                  <option value="5">5 — Pro / Freeride</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Privacy + Max members */}
+            <div style={{ ...styles.editRow, marginTop: '1rem' }}>
+              <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                <label className="form-label">Privacy</label>
+                <select name="privacy" className="form-input"
+                  value={editForm.privacy} onChange={handleEditChange} disabled={editSaving}>
+                  <option value="public">🌍 Public</option>
+                  <option value="friends-only">👥 Friends Only</option>
+                  <option value="private">🔒 Private</option>
+                </select>
+              </div>
+              <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                <label className="form-label">Max Members <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></label>
+                <input type="number" name="maxMembers" className="form-input"
+                  min="1" max="100" placeholder="No limit"
+                  value={editForm.maxMembers} onChange={handleEditChange} disabled={editSaving} />
+              </div>
+            </div>
+
+            <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.75rem' }}>
+              <button type="submit" className="btn btn-primary" disabled={editSaving}>
+                {editSaving ? <><span className="spinner spinner-sm" /> Saving…</> : '💾 Save Changes'}
+              </button>
+              <button type="button" className="btn btn-secondary"
+                onClick={() => setShowEditForm(false)} disabled={editSaving}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
 
       {/* ── SECTION 1: Trip Overview ─────────────────────────────────────── */}
       <section className="card" style={styles.heroCard} aria-label="Trip overview">
@@ -866,6 +1043,11 @@ const styles = {
   weatherNote: {
     fontSize: '0.78rem', color: 'var(--text-muted)',
     margin: '0.4rem 0 0',
+  },
+
+  // Edit form
+  editRow: {
+    display: 'flex', gap: '1rem', marginTop: '1rem',
   },
 
   // Members section
