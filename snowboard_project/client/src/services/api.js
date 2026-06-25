@@ -1,7 +1,10 @@
 /**
  * SnowTrip Planner — API Service Layer
  *
- * Base URL: http://localhost:3000 (Assignment 2 backend)
+ * Base URL:
+ *   - Development (REACT_APP_API_URL set, or running on localhost): http://localhost:3000
+ *   - Production: '' (empty string — frontend + backend share the same Render
+ *     origin, so requests use relative paths, e.g. fetch('/auth/login'))
  *
  * All backend responses follow the universal format:
  *   { success: true,  data: {...}, error: null }
@@ -16,7 +19,11 @@
 
 // ── Base configuration ────────────────────────────────────────────────────────
 
-export const API_BASE_URL = 'http://localhost:3000';
+const isLocalDev =
+  Boolean(process.env.REACT_APP_API_URL) ||
+  window.location.hostname === 'localhost';
+
+export const API_BASE_URL = isLocalDev ? 'http://localhost:3000' : '';
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 
@@ -91,7 +98,9 @@ const request = async (path, options = {}) => {
   } catch (networkErr) {
     // Network failure (e.g. backend not running)
     throw new Error(
-      'Cannot connect to the server. Please make sure the backend is running on http://localhost:3000'
+      isLocalDev
+        ? 'Cannot connect to the server. Please make sure the backend is running on http://localhost:3000'
+        : 'Cannot connect to the server. Please try again later.'
     );
   }
 

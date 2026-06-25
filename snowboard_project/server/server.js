@@ -1,5 +1,6 @@
 require("dotenv").config();
 const express = require("express");
+const path = require("path");
 const app = express();
 
 const logger = require("./middleware/logger");
@@ -19,8 +20,11 @@ app.use(express.json());
 app.use(logger);
 
 // ─── CORS — allow React dev server (port 5173) to reach this API ──────────────
+// In production, frontend + backend share the same Render domain, so allow all origins.
+// In development, restrict to the local React dev server.
 app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
+  const allowedOrigin = process.env.NODE_ENV === "production" ? "*" : "http://localhost:5173";
+  res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-user-role, x-user-id");
   if (req.method === "OPTIONS") {
@@ -39,6 +43,16 @@ app.use("/", socialRoutes);
 app.use("/trip-members", tripMemberRoutes);
 app.use("/auth",      authRoutes);
 app.use("/dashboard", dashboardRoutes);
+
+// ─── Serve React build (single Render web service serves API + frontend) ─────
+app.use(express.static(path.join(__dirname, "../client/build")));
+
+// Catch-all — any GET not matched by an API route above falls through to the
+// React app's index.html, so React Router can handle client-side routing
+// (without this, refreshing a non-"/" route returns a 404).
+app.get("/*splat", (req, res) => {
+  res.sendFile(path.join(__dirname, "../client/build", "index.html"));
+});
 
 // ─── 404 Fallback — unknown endpoints ────────────────────────────────────────
 app.use((req, res) => {
@@ -72,7 +86,7 @@ app.use((err, req, res, next) => {
 const http            = require("http");
 const { sequelize }   = require("./db");
 const { initSocket }  = require("./socket");
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 const httpServer = http.createServer(app);
 initSocket(httpServer);
