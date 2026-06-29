@@ -67,8 +67,9 @@ function TripDetailsPage() {
   const [summary,   setSummary]   = useState(null);
 
   // Loading/error
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState('');
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState('');
+  const [weatherNote, setWeatherNote] = useState('');
 
   // Locations filter
   const [locFilter, setLocFilter] = useState('all');
@@ -112,7 +113,7 @@ function TripDetailsPage() {
 
         const [resortData, forecastData, locData, membersData, friendsData] = await Promise.all([
           getResortById(tripData.resortId),
-          getResortForecast(tripData.resortId, tripData.startDate, tripData.endDate),
+          getResortForecast(tripData.resortId, tripData.startDate, tripData.endDate).catch(() => null),
           getResortLocations(tripData.resortId),
           getTripMembers(tripId),
           user?.userId ? getFriends(user.userId) : Promise.resolve([]),
@@ -131,6 +132,7 @@ function TripDetailsPage() {
           setTrip(tripData);
           setResort(resortData);
           setForecast(forecastData);
+          if (!forecastData) setWeatherNote("Weather data isn't available for this trip right now.");
           setLocations(locData ?? []);
           setSummary(summaryData);
           setMembers(membersData ?? []);
@@ -695,6 +697,12 @@ function TripDetailsPage() {
       })()}
 
       {/* ── SECTION 3: Weather Conditions ────────────────────────────────── */}
+      {weatherNote && !forecast && (
+        <section aria-label="Weather forecast" style={{ marginBottom: '2rem' }}>
+          <h2 style={styles.sectionTitle}>🌤️ Weather Conditions</h2>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{weatherNote}</p>
+        </section>
+      )}
       {forecast?.days?.length > 0 && (
         <section aria-label="Weather forecast" style={{ marginBottom: '2rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>

@@ -222,13 +222,15 @@ async function fetchHistorical(resort, startDate, endDate, signal) {
 async function fetchTypical(resort, startDate, endDate, signal) {
   const s = new Date(startDate);
   const e = new Date(endDate);
-  const historicalYears = await Promise.all(
+  const results = await Promise.allSettled(
     [-3, -2, -1].map(offset => fetchHistorical(resort,
       `${s.getFullYear() + offset}-${pad(s.getMonth() + 1)}-${pad(s.getDate())}`,
       `${e.getFullYear() + offset}-${pad(e.getMonth() + 1)}-${pad(e.getDate())}`,
       signal
     ))
   );
+  const historicalYears = results.filter(r => r.status === 'fulfilled').map(r => r.value);
+  if (historicalYears.length === 0) throw new Error('Open-Meteo Archive error: no historical data available');
   const dayCount = historicalYears[0].length;
   return Array.from({ length: dayCount }, (_, i) => {
     const targetDate = new Date(s);
